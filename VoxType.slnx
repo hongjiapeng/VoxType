@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/VoxType.App/VoxType.App.csproj" />
+    <Project Path="src/VoxType.Core/VoxType.Core.csproj" />
+    <Project Path="src/VoxType.Infrastructure/VoxType.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoxType.Tests/VoxType.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+</Solution>

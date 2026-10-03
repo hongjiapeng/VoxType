@@ -1,0 +1,122 @@
+<Page x:Class="VoxType_App.MainPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="using:VoxType_App">
+    <Page.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="24" />
+        </Style>
+    </Page.Resources>
+    <NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="210"
+                    IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
+                    SelectionChanged="Navigation_SelectionChanged" IsPaneOpen="True"
+                    AutomationProperties.AutomationId="SettingsNavigation">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="常规" Icon="Home" Tag="0" AutomationProperties.AutomationId="NavGeneral" />
+            <NavigationViewItem Content="语音识别" Tag="1" AutomationProperties.AutomationId="NavRecognition">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE720;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="快捷键" Tag="2" AutomationProperties.AutomationId="NavHotkeys">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE765;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.MenuItems>
+        <Grid Padding="32,20,32,24" RowSpacing="20">
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid>
+                    <StackPanel Spacing="20" Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowGeneral), Mode=OneWay}">
+                        <TextBlock Text="常规" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="随时开口，文字进入当前输入框。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="12">
+                            <TextBlock Text="开始使用" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind ViewModel.UsageInstructions, Mode=OneWay}" TextWrapping="Wrap" />
+                            <TextBlock Text="关闭设置后，VoxType 仍在托盘运行。通过托盘菜单退出应用。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel></Border>
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="12">
+                            <ComboBox Header="外观" ItemsSource="{x:Bind ViewModel.Themes, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.Theme, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ThemeSelector" />
+                            <TextBlock Text="system 跟随系统 · light 亮色 · dark 暗色" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel></Border>
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="12">
+                            <TextBlock Text="最近一次识别" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="仅保留在内存中，退出即清除。自动输入被目标忽略时，可在这里复制。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBox Text="{x:Bind ViewModel.LatestText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="100" AutomationProperties.Name="最近一次识别文本" />
+                            <Button Content="复制文本" Command="{x:Bind ViewModel.CopyCommand}" IsEnabled="{x:Bind ViewModel.CanCopy, Mode=OneWay}" />
+                        </StackPanel></Border>
+                    </StackPanel>
+                    <StackPanel Spacing="20" Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowRecognition), Mode=OneWay}">
+                        <TextBlock Text="语音识别" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="选择识别服务，配置音频的处理方式。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="16">
+                            <ComboBox Header="识别服务" ItemsSource="{x:Bind ViewModel.Providers, Mode=OneWay}" DisplayMemberPath="DisplayName" SelectedItem="{x:Bind ViewModel.SelectedProvider, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ProviderSelector" />
+                            <TextBlock Text="{x:Bind ViewModel.ProviderDescription, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="{x:Bind Models.ModelName, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind Models.SizeDescription, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <ComboBox Header="下载来源" ItemsSource="{x:Bind Models.Sources, Mode=OneWay}" DisplayMemberPath="Name" SelectedItem="{x:Bind Models.SelectedSource, Mode=TwoWay}" IsEnabled="{x:Bind Models.CanRefresh, Mode=OneWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ModelDownloadSource" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind Models.Percent, Mode=OneWay}" Visibility="{x:Bind local:MainPage.Visible(Models.IsTransferring), Mode=OneWay}" AutomationProperties.Name="模型安装进度" AutomationProperties.AutomationId="ModelDownloadProgress" />
+                                <TextBlock Text="{x:Bind Models.TransferStatus, Mode=OneWay}" Visibility="{x:Bind local:MainPage.Visible(Models.IsTransferring), Mode=OneWay}" AutomationProperties.AutomationId="ModelTransferStatus" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="下载模型" Command="{x:Bind Models.DownloadCommand}" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="DownloadModel" />
+                                    <Button Content="导入已有模型" Command="{x:Bind Models.ImportCommand}" AutomationProperties.AutomationId="ImportModel" />
+                                    <Button Content="使用此模型" Command="{x:Bind Models.UseCommand}" AutomationProperties.AutomationId="UseModel" />
+                                    <Button Content="取消" Command="{x:Bind Models.CancelCommand}" Visibility="{x:Bind local:MainPage.Visible(Models.IsTransferring), Mode=OneWay}" AutomationProperties.AutomationId="CancelModelDownload" />
+                                </StackPanel>
+                                <TextBlock Text="{x:Bind Models.Status, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="ModelInstallStatus" AutomationProperties.LiveSetting="Polite" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="打开文件夹" Command="{x:Bind Models.ShowFolderCommand}" AutomationProperties.AutomationId="OpenModelFolder" />
+                                    <Button Content="删除" Command="{x:Bind Models.DeleteCommand}" AutomationProperties.AutomationId="DeleteModel" />
+                                    <Button Content="刷新" Command="{x:Bind Models.RefreshCommand}" AutomationProperties.AutomationId="RefreshModels" />
+                                </StackPanel>
+                                <Expander Header="模型说明、来源与安装位置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" AutomationProperties.AutomationId="ModelDetails">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock Text="{x:Bind Models.ModelDescription, Mode=OneWay}" TextWrapping="Wrap" />
+                                        <HyperlinkButton Content="查看模型来源与许可" NavigateUri="{x:Bind Models.SourcePage, Mode=OneWay}" Padding="0" />
+                                        <TextBlock Text="{x:Bind Models.SourceUrl, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="仅在点击下载时联网；下载或导入后校验完整性。本地语音识别在设备上完成。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind Models.InstalledPath, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="ManagedModelPath" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="16">
+                            <TextBox Header="本地模型路径" Text="{x:Bind ViewModel.LocalModelPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="ggml-base.bin 的完整路径（留空使用默认目录）" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" AutomationProperties.AutomationId="ModelPath" />
+                            <TextBlock Text="也可手动指定已有的多语言 ggml-base.bin。留空使用以下默认模型文件：" TextWrapping="Wrap" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{x:Bind ViewModel.DefaultModelPath, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DefaultModelPath" />
+                            <TextBox Header="Base URL" Text="{x:Bind ViewModel.BaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasBaseUrl), Mode=OneWay}" AutomationProperties.AutomationId="BaseUrl" />
+                            <PasswordBox Header="API Key（可选）" Password="{x:Bind ViewModel.ApiKey, Mode=TwoWay}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasApiKey), Mode=OneWay}" AutomationProperties.AutomationId="ApiKey" />
+                            <TextBox Header="模型名称" Text="{x:Bind ViewModel.Model, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModel), Mode=OneWay}" AutomationProperties.AutomationId="OnlineModel" />
+                            <ComboBox Header="识别语言" ItemsSource="{x:Bind ViewModel.Languages, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.Language, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="LanguageSelector" />
+                            <TextBlock Text="auto 自动检测 · zh 中文 · en 英文" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel></Border>
+                    </StackPanel>
+                    <StackPanel Spacing="20" Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowHotkeys), Mode=OneWay}">
+                        <TextBlock Text="快捷键" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="按住说话，松开识别。保存后的组合会用于下一次录音。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="16">
+                            <TextBlock Text="修饰键（至少选择一项）" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <CheckBox Content="Alt" IsChecked="{x:Bind ViewModel.Alt, Mode=TwoWay}" AutomationProperties.AutomationId="AltModifier" />
+                                <CheckBox Content="Ctrl" IsChecked="{x:Bind ViewModel.Control, Mode=TwoWay}" AutomationProperties.AutomationId="ControlModifier" />
+                                <CheckBox Content="Shift" IsChecked="{x:Bind ViewModel.Shift, Mode=TwoWay}" AutomationProperties.AutomationId="ShiftModifier" />
+                                <CheckBox Content="Win" IsChecked="{x:Bind ViewModel.Windows, Mode=TwoWay}" AutomationProperties.AutomationId="WindowsModifier" />
+                            </StackPanel>
+                            <TextBox Header="主键" Text="{x:Bind ViewModel.Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="HotkeyKey" />
+                            <TextBlock Text="Space、A–Z、0–9 或 F1–F11。先按修饰键，再按主键。ESC 始终用于取消。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="默认 Ctrl + Win + F8。可更换为适合你的组合；避免 Windows 系统和常用编辑器已使用的快捷键。" TextWrapping="Wrap" />
+                        </StackPanel></Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+            <StackPanel Grid.Row="1" Spacing="12">
+                <TextBlock Text="{x:Bind ViewModel.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsStatus" AutomationProperties.LiveSetting="Polite" />
+                <Button Content="保存设置" Command="{x:Bind ViewModel.SaveCommand}" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Right" AutomationProperties.AutomationId="SaveSettings" />
+            </StackPanel>
+        </Grid>
+    </NavigationView>
+</Page>

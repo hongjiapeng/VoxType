@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+.vs/
+*.user
+*.pfx
+*.cer
+artifacts/
+*.msix
+*.msixbundle
+ui-test-artifacts/
+test-results.json
+*.bin
+*.wav
+*.trx
+TestResults/
+.testagent/ui-profile.txt

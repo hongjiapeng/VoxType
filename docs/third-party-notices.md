@@ -1,0 +1,18 @@
+# 第三方依赖与模型
+
+本实现独立编写，未复制参考产品的业务代码或资产。项目自身开源许可证尚待维护者决定。NuGet 的精确版本与传递依赖见各工程 `packages.lock.json`；发布前应一并审阅传递依赖。已收集包内及上游许可至 `docs/licenses`，应用产物包含这些文件和本说明。
+
+|组件|锁定版本|上游许可/来源|
+|---|---|---|
+|Windows App SDK|2.5.1|[Microsoft 仓库及许可](https://github.com/microsoft/WindowsAppSDK)|
+|CommunityToolkit.Mvvm|8.4.2|[MIT](https://github.com/CommunityToolkit/dotnet/blob/main/License.md)|
+|NAudio.Wasapi / Core|3.1.0|[MIT](https://github.com/naudio/NAudio/blob/master/license.txt)|
+|Whisper.net / CPU Runtime|1.9.1|包内 `LICENSE`；[MIT 上游](https://github.com/sandrohanea/whisper.net/blob/main/LICENSE)|
+|whisper.cpp / ggml|随 Whisper.net.Runtime|[所锁定源提交的 MIT](https://github.com/ggml-org/whisper.cpp/blob/f24588a272ae8e23280d9c220536437164e6ed28/LICENSE)；版权主体为 The ggml authors，已保留该许可|
+|ProtectedData / Microsoft .NET 组件|10.0.12 及锁文件版本|[.NET MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT)|
+|WinApp / Windows SDK BuildTools / WinUIAnalyzer|0.7.1 / 10.0.28000.2705|Microsoft 对应 NuGet 包提供的条款；开发构建依赖|
+|MSTest / TimeProvider.Testing|4.0.2 / 10.10.0|Microsoft 对应 NuGet 包的许可；测试依赖|
+
+模型没有打包，也不会在启动或识别时自动下载。用户可主动在设置下载/导入多语言 base GGML（`ggml-base.bin`，147951465 字节），上游为 [ggerganov/whisper.cpp 模型仓库](https://huggingface.co/ggerganov/whisper.cpp/tree/main)，说明见 [whisper.cpp 模型说明](https://github.com/ggml-org/whisper.cpp/tree/master/models)；[OpenAI Whisper](https://github.com/openai/whisper/blob/main/LICENSE) 发布 MIT 许可。设置也提供明确标注的 [HF-Mirror 第三方镜像](https://hf-mirror.com)，用户主动选择，不静默切换；所有来源与导入文件使用相同的上游 SHA-256 `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe` 校验。模型大小和哈希于 2026-10-03 从上游模型 API 核实。配置第三方在线接口时遵循该服务器的数据与使用条款。
+
+CPU runtime 要求依据 [Whisper.net 官方说明](https://github.com/sandrohanea/whisper.net#pre-requisites)。本项目没有安装额外 GPU/Python runtime，也没有将各参考项目的产品许可视为本项目可复制其实现的授权。

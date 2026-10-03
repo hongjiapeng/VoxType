@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "VoxType.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "VoxType.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
