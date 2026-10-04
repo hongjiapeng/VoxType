@@ -10,6 +10,7 @@ public static class NativeWindow
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int command);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(nint hwnd);
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern nint SendMessage(nint hwnd, uint message, nuint wParam, nint lParam);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern nint GetWindowLongPtr(nint hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)] private static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
@@ -35,6 +36,9 @@ public static class NativeWindow
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         int roundCorners = 2;
         DwmSetWindowAttribute(hwnd, 33, ref roundCorners, sizeof(int));
+        // Let the XAML surface draw the stroke; DWM's default border is bright on dark themes.
+        int noBorderColor = unchecked((int)0xFFFFFFFE);
+        DwmSetWindowAttribute(hwnd, 34, ref noBorderColor, sizeof(int));
     }
 
     public static void PositionOverlay(nint hwnd, nint target)
@@ -43,9 +47,20 @@ public static class NativeWindow
         var info = new MonitorInfo { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
         if (!GetMonitorInfo(monitor, ref info)) throw new Win32Exception();
         double scale = GetDpiForMonitor(monitor, 0, out uint dpi, out _) == 0 ? dpi / 96d : 1;
-        int width = (int)Math.Round(360 * scale), height = (int)Math.Round(84 * scale);
+        int width = (int)Math.Round(384 * scale), height = (int)Math.Round(112 * scale);
         int x = info.Work.Left + (info.Work.Right - info.Work.Left - width) / 2;
         int y = info.Work.Bottom - height - (int)(24 * scale);
-        if (!SetWindowPos(hwnd, -1, x, y, width, height, 0x10)) throw new Win32Exception();
+        if (!SetWindowPos(hwnd, -1, x, y, width, height, 0x10 | 0x20)) throw new Win32Exception();
+    }
+
+    public static void InitializeOverlayContent(nint hwnd)
+    {
+        // AppWindow.Show(false) does not prime WinUI's first render on a cold start.
+        // Notify only this HWND's XAML host, then return it to the inactive state.
+        // No native activation, foreground change, or input-queue attachment occurs.
+        const uint wmActivate = 0x0006;
+        nint foreground = GetForegroundWindow();
+        SendMessage(hwnd, wmActivate, 1, foreground);
+        SendMessage(hwnd, wmActivate, 0, foreground);
     }
 }

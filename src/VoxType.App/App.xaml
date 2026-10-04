@@ -12,13 +12,61 @@
             </ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary.ThemeDictionaries>
                     <ResourceDictionary x:Key="Light">
-                        <AcrylicBrush x:Key="OverlaySurfaceBrush" TintColor="#F4F8FF" TintOpacity="0.90" FallbackColor="#F4F8FF" />
+                        <LinearGradientBrush x:Key="OverlaySurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FFFDFC" Offset="0" />
+                            <GradientStop Color="#F6F6F3" Offset="1" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="OverlayStrokeBrush" Color="#18000000" />
+                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="#08000000" />
+                        <SolidColorBrush x:Key="OverlayListeningBrush" Color="#087F8C" />
+                        <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="#E5F3F3" />
+                        <SolidColorBrush x:Key="OverlayProcessingBrush" Color="#5865B7" />
+                        <SolidColorBrush x:Key="OverlayProcessingSurfaceBrush" Color="#EEEFFA" />
+                        <SolidColorBrush x:Key="OverlaySuccessBrush" Color="#22764B" />
+                        <SolidColorBrush x:Key="OverlaySuccessSurfaceBrush" Color="#E7F3EB" />
+                        <SolidColorBrush x:Key="OverlayWarningBrush" Color="#9A6314" />
+                        <SolidColorBrush x:Key="OverlayWarningSurfaceBrush" Color="#FCF0DE" />
+                        <SolidColorBrush x:Key="OverlayListeningStrokeBrush" Color="#22087F8C" />
+                        <SolidColorBrush x:Key="OverlayProcessingStrokeBrush" Color="#225865B7" />
+                        <SolidColorBrush x:Key="OverlaySuccessStrokeBrush" Color="#2222764B" />
+                        <SolidColorBrush x:Key="OverlayWarningStrokeBrush" Color="#229A6314" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Dark">
-                        <AcrylicBrush x:Key="OverlaySurfaceBrush" TintColor="#152C48" TintOpacity="0.90" FallbackColor="#152C48" />
+                        <LinearGradientBrush x:Key="OverlaySurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#292D32" Offset="0" />
+                            <GradientStop Color="#1E2227" Offset="1" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="OverlayStrokeBrush" Color="#24FFFFFF" />
+                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="#0FFFFFFF" />
+                        <SolidColorBrush x:Key="OverlayListeningBrush" Color="#71D5CE" />
+                        <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="#293E40" />
+                        <SolidColorBrush x:Key="OverlayProcessingBrush" Color="#ADB7F2" />
+                        <SolidColorBrush x:Key="OverlayProcessingSurfaceBrush" Color="#34384E" />
+                        <SolidColorBrush x:Key="OverlaySuccessBrush" Color="#8AD4A5" />
+                        <SolidColorBrush x:Key="OverlaySuccessSurfaceBrush" Color="#2B4034" />
+                        <SolidColorBrush x:Key="OverlayWarningBrush" Color="#E9BC77" />
+                        <SolidColorBrush x:Key="OverlayWarningSurfaceBrush" Color="#443A2C" />
+                        <SolidColorBrush x:Key="OverlayListeningStrokeBrush" Color="#3071D5CE" />
+                        <SolidColorBrush x:Key="OverlayProcessingStrokeBrush" Color="#30ADB7F2" />
+                        <SolidColorBrush x:Key="OverlaySuccessStrokeBrush" Color="#308AD4A5" />
+                        <SolidColorBrush x:Key="OverlayWarningStrokeBrush" Color="#30E9BC77" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="HighContrast">
                         <SolidColorBrush x:Key="OverlaySurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayListeningBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayProcessingSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlaySuccessBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlaySuccessSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayWarningBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayWarningSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayListeningStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayProcessingStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlaySuccessStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="OverlayWarningStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

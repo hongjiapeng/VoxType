@@ -9,6 +9,7 @@ public partial class OverlayViewModel : ObservableObject
     [ObservableProperty] public partial string Title { get; set; } = "";
     [ObservableProperty] public partial string Detail { get; set; } = "";
     [ObservableProperty] public partial string Badge { get; set; } = "本地";
+    [ObservableProperty] public partial string BadgeGlyph { get; set; } = "\uE72E";
     [ObservableProperty] public partial string Glyph { get; set; } = "\uE720";
     [ObservableProperty] public partial bool IsListening { get; set; }
     [ObservableProperty] public partial bool IsProcessing { get; set; }
@@ -17,7 +18,8 @@ public partial class OverlayViewModel : ObservableObject
     [RelayCommand] private void Stop() => StopRequested?.Invoke(this, EventArgs.Empty);
     public void Update(SessionUpdate update)
     {
-        Badge = update.IsLocal ? "本地" : "在线";
+        Badge = update.IsLocal ? "本地识别" : "在线识别";
+        BadgeGlyph = update.IsLocal ? "\uE72E" : "\uE774";
         IsListening = update.State == SessionState.Listening;
         IsProcessing = update.State is SessionState.Starting or SessionState.Stopping or SessionState.Processing or SessionState.Injecting or SessionState.Cancelling;
         ShowStop = update.FromTray && IsListening;
@@ -29,9 +31,12 @@ public partial class OverlayViewModel : ObservableObject
             SessionState.Injecting => "正在发送文本",
             SessionState.Completed => "已发送文本",
             SessionState.Cancelling => "正在取消",
-            _ => "无法完成语音输入"
+            SessionState.Failed when update.Message.Contains("没有检测到足够音量", StringComparison.Ordinal) => "没有听到声音",
+            _ => "语音输入未完成"
         };
-        Detail = IsListening ? update.FromTray ? "点击结束完成 · ESC 取消" : "松开快捷键完成 · ESC 取消" : update.Message;
+        Detail = IsListening ? update.FromTray ? "点击结束，完成输入" : "松开快捷键，完成输入"
+            : update.State == SessionState.Failed && update.Message.Contains("没有检测到足够音量", StringComparison.Ordinal)
+                ? "检查麦克风后，按住快捷键重试。" : update.Message;
         Glyph = update.State == SessionState.Completed ? "\uE73E" : update.State == SessionState.Failed ? "\uE783" : "\uE720";
     }
 }

@@ -90,17 +90,30 @@ public partial class App : Application
         if (index < 0 || services is null) return;
         if (services.Coordinator?.IsBusy == true) return;
         string value = arguments[(index + prefix.Length)..].Split(' ')[0];
+        string previewTheme = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(x => x.StartsWith("--check-theme=", StringComparison.Ordinal))?[14..] ?? services.Settings.Current.Theme;
+        services.Overlay.ApplyTheme(previewTheme);
         var state = value switch
         {
-            "listening" or "tray" => VoxType.Core.Dictation.SessionState.Listening,
+            "listening" or "voice" or "motion" or "tray" => VoxType.Core.Dictation.SessionState.Listening,
             "processing" => VoxType.Core.Dictation.SessionState.Processing,
             "completed" => VoxType.Core.Dictation.SessionState.Completed,
-            "failed" => VoxType.Core.Dictation.SessionState.Failed,
+            "failed" or "failed-long" => VoxType.Core.Dictation.SessionState.Failed,
             _ => VoxType.Core.Dictation.SessionState.Idle
         };
         checkingLayout = state != VoxType.Core.Dictation.SessionState.Idle;
-        services.Overlay.Update(new(++layoutSession, state, "静态布局检查", "布局检查", true,
+        string previewMessage = value switch
+        {
+            "failed" => "没有检测到足够音量，请检查麦克风并重试。",
+            "failed-long" => "无法将识别结果发送到当前应用。文本已复制到剪贴板，请返回输入框后手动粘贴。",
+            "processing" => "正在把语音转换为文字…",
+            "completed" => "文字已输入到当前应用",
+            _ => "静态布局检查"
+        };
+        services.Overlay.Update(new(++layoutSession, state, previewMessage, "布局检查", true,
             new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value == "tray"));
+        if (value == "voice") services.Overlay.PreviewAudioLevels();
+        if (value == "motion") services.Overlay.PreviewAudioLevels(true);
 #endif
     }
     public async void RequestExit()
