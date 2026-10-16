@@ -12,4 +12,7 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/services/">
+    <Project Path="services/R2T2.Server/R2T2.Server.csproj" />
+  </Folder>
 </Solution>

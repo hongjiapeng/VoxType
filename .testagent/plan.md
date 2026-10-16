@@ -28,3 +28,11 @@
 |迁移一次且保留原加密密钥/配置|`LegacyDefault_UpgradesOnce_KeepingProviderPathAndEncryptedKey`|
 |保留已有及明确选择的自定义键|`LegacyCustomHotkey_IsPreservedDuringUpgrade`、`CurrentVersion_ExplicitAltSpace_RemainsUserChoice`|
 |迁移写入失败不丢旧设置|`MigrationWriteFailure_UsesNewDefaultWithoutLosingExistingConfiguration`|
+
+## R2T2 feature test plan (2026-10-10)
+
+1. ServerAddressPolicyTests: accepted private IPv4/ULA/mapped IPv6, denied public/link-local/hostname HTTP, old-provider isolation, credential/query/fragment rejection, settings acceptance/rejection and provider forwarding.
+2. WavValidatorTests + ServerOptionsTests: exact valid min/max boundaries; below/above data limits, truncation, RIFF mismatch, unsupported PCM format, missing/duplicate chunks and padding; listener authentication/upstream constraints/timeouts.
+3. LlamaTranscriberTests: exact base64 bytes and ordered messages, explicit/auto language, context/response bounds, sanitization/no retries, readiness, cancellation, queue serialization/release.
+4. R2T2HttpContractTests: child adapter process plus local stub upstream; health/model/auth contract, rejection before inference, JSON/text success and upstream error sanitization. Own all processes and dispose in finally.
+5. Narrow MSTest run, review production-to-assertion outcomes with test-gap-analysis and classify assertions with assertion-quality. Append final status/evidence. Parent handles full solution validation.

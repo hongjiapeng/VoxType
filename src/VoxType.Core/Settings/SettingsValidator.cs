@@ -16,12 +16,10 @@ public static class SettingsValidator
             settings.LocalModelPath.Length > 4096 || settings.BaseUrl.Length > 4096 || settings.Model.Length > 512 || settings.ApiKey.Length > 16384)
             throw new ArgumentException("配置字段无效或过长。");
         if (settings.ApiKey.Any(char.IsControl)) throw new ArgumentException("API Key 含无效字符。");
-        if (settings.ProviderId == "openai-compatible")
+        if (settings.ProviderId is "openai-compatible" or "r2t2-server")
         {
-            if (!Uri.TryCreate(settings.BaseUrl.Trim(), UriKind.Absolute, out var uri) ||
-                !(uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) || uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0)
-                throw new ArgumentException("Base URL 需要 HTTPS（本机回环可使用 HTTP），且不包含账号、查询或片段。");
-            if (string.IsNullOrWhiteSpace(settings.Model)) throw new ArgumentException("请输入在线模型名称。");
+            _ = ServerAddressPolicy.Validate(settings.BaseUrl, settings.ProviderId);
+            if (string.IsNullOrWhiteSpace(settings.Model)) throw new ArgumentException("请输入模型名称。");
         }
     }
 }

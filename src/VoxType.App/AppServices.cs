@@ -77,6 +77,7 @@ public sealed class AppServices : IAsyncDisposable
             var providers = new TranscriptionProviderRegistry(new Dictionary<string, Func<AppSettings, VoxType.Core.Transcription.IProviderLease>>
             {
                 ["openai-compatible"] = snapshot => new ProviderLease(new OpenAiCompatibleProvider(transcriptionClient, snapshot)),
+                ["r2t2-server"] = snapshot => new ProviderLease(new OpenAiCompatibleProvider(transcriptionClient, snapshot)),
                 ["whisper-local"] = snapshot =>
                 {
                     WhisperModelPath.Validate(WhisperModelPath.Resolve(snapshot.LocalModelPath));

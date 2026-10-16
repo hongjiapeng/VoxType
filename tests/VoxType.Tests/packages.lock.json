@@ -216,6 +216,9 @@
         "resolved": "1.9.1",
         "contentHash": "Ut5tZyCUwXMVdThoLvdvQ7GyLwjRMreR/p3LuMJvRiXidQ2AXxx2Tv8UOGtMxvL395AC3+IkHdN/kMfd+EPSEw=="
       },
+      "r2t2.server": {
+        "type": "Project"
+      },
       "voxtype.core": {
         "type": "Project"
       },

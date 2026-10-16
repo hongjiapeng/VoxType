@@ -110,7 +110,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService
             await ReleaseAsync().ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (fault is not null) throw new AudioCaptureException("录音设备中断，未发送音频。", fault);
-            return await Task.Run(() => WavConverter.Convert(bytes, inputFormat), cancellationToken).ConfigureAwait(false);
+            return await Task.Run(() => WavConverter.ConvertForSpeech(bytes, inputFormat), cancellationToken).ConfigureAwait(false);
         }
         finally { await ReleaseAsync().ConfigureAwait(false); gate.Release(); }
     }

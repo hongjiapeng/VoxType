@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "R2T2.Server": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:11390;http://localhost:11391"
+    }
+  }
+}

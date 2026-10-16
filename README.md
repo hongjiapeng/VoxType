@@ -25,9 +25,11 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local --args '--se
 
 ## 配置识别
 
+**R2T2 本机／局域网** 已支持 `Confucius4-R2T2-Q4_K_M.gguf`，通过独立服务连接本机或局域网设备。先运行 `pwsh -File scripts/prepare-r2t2.ps1`，再运行 `pwsh -File scripts/start-r2t2.ps1`；设置中选择 R2T2，Base URL 填 `http://127.0.0.1:8272/v1`，模型填 `r2t2-q4`。需要主模型和音频投影文件，合计约 1.63 GiB。支持明确选择 HF-Mirror 下载源、Windows CPU/Vulkan 和 Linux Docker Compose 部署；目前是松开按键后整段识别。局域网配置及接口说明见 [R2T2 部署文档](docs/r2t2-server.md)，实际 Q4 验证见 [R2T2 验证记录](docs/r2t2-verification.md)。
+
 **Whisper 本地** 为默认模式。在“语音识别 → 本地模型”查看多语言 **Whisper base GGML**（约 148 MB），选择 Hugging Face 官方源或明确标注的 HF-Mirror 第三方镜像，点击“下载模型”。显示进度并支持取消，失败后可更换来源并重试；程序不会自动切换来源。也可通过“导入已有模型”选择 `ggml-base.bin`，原文件保留。下载/导入经过精确大小、上游 SHA-256 和模型头校验后原子安装，已有文件不被覆盖。取消和失败清理临时文件，重试从头开始。完成后点击“使用此模型”，保存本地服务与模型路径，下一次语音输入生效；其他设置不变。支持打开文件夹、刷新校验状态和确认删除；识别/录音使用模型期间拒绝删除，空闲时先卸载缓存，且仅删除程序模型目录的文件。关闭设置继续下载，托盘退出会取消并等待清理。
 
-仍可在设置手动指定模型完整路径；留空使用设置页面显示的默认模型文件。MSIX 版本默认位于当前包的 `LocalCache\VoxType\models\ggml-base.bin`；非打包运行使用 `%LOCALAPPDATA%\VoxType\models\ggml-base.bin`。Windows 会重定向 MSIX 的普通 AppData 路径，请以页面显示的实际目录为准。英文专用 `base.en`、其他模型尺寸和 GGUF 不在此版本支持范围。手动路径仅进行模型头初步校验，实际完整性由加载验证；程序内下载/导入及刷新状态另有完整哈希校验。缺失/无效模型在打开麦克风前提示。应用不在启动或识别时自动下载模型，也不自动切换在线服务。
+仍可在设置手动指定模型完整路径；留空使用设置页面显示的默认模型文件。MSIX 版本默认位于当前包的 `LocalCache\VoxType\models\ggml-base.bin`；非打包运行使用 `%LOCALAPPDATA%\VoxType\models\ggml-base.bin`。Windows 会重定向 MSIX 的普通 AppData 路径，请以页面显示的实际目录为准。Whisper 本地 Provider 目前不支持英文专用 `base.en`、其他模型尺寸或 GGUF；R2T2 GGUF 使用上述独立服务。手动路径仅进行模型头初步校验，实际完整性由加载验证；程序内下载/导入及刷新状态另有完整哈希校验。缺失/无效模型在打开麦克风前提示。应用不在启动或识别时自动下载模型，也不自动切换在线服务。
 
 本地使用同版 `Whisper.net` / `Whisper.net.Runtime` 1.9.1 CPU runtime，要求 AVX、AVX2、FMA、F16C 和 x64 Visual C++ 2022 Redistributable。首次识别后台加载模型；连续识别复用模型，5 分钟空闲或切换设置后安全卸载。ESC 会丢弃结果，正在执行的原生推理仍需结束后才能重新使用资源，不保证瞬间中止 CPU 推理。
 
@@ -37,7 +39,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local --args '--se
 
 ## 输入与使用边界
 
-先聚焦记事本或其他应用的输入框，再按住快捷键。录音最长 60 秒，低信号或不足 250 毫秒的录音不提交识别。浮层波形来自真实音频 RMS；识别阶段显示进度环。
+先聚焦记事本或其他应用的输入框，再按住快捷键。录音最长 60 秒，不足 250 毫秒的录音不提交识别。收音先转换为 16 kHz 单声道，滤除直流偏置与低频轰鸣，再按 20 毫秒窗口检查声音：累计至少 200 毫秒达到约 -56 dBFS 即可继续，避免轻声和长停顿被整段平均音量误判。有效录音按声音窗口进行音量补偿，最多放大 8 倍（约 18 dB），峰值保留余量；保留全部音频，不裁剪停顿或尾音。静音及短促碰麦不会触发补偿。这是音量检查，不是可区分人声和环境声的语音活动模型；持续环境噪声仍可能通过。浮层波形来自真实音频 RMS；识别阶段显示进度环。
 
 WASAPI 优先使用 RAW 流，跳过系统麦克风增强处理而不修改 Windows 声音设置；设备明确返回 RAW 不支持时回退常规流。停止请求会持续到原生录音线程真正结束，避免快速松键/取消被底层启动线程覆盖。
 

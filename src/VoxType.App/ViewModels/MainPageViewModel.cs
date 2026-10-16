@@ -84,9 +84,8 @@ public partial class MainPageViewModel : ObservableObject
             var modifiers = (Alt ? KeyModifiers.Alt : 0) | (Control ? KeyModifiers.Control : 0) | (Shift ? KeyModifiers.Shift : 0) | (Windows ? KeyModifiers.Windows : 0);
             var hotkey = new HotkeyBinding(modifiers, ParseKey(Key));
             hotkey.Validate();
-            if (HasBaseUrl && (!Uri.TryCreate(BaseUrl.Trim(), UriKind.Absolute, out var uri) || !(uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) || uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0))
-                throw new ArgumentException("Base URL 需要 HTTPS（本机回环可使用 HTTP），且不包含账号、查询或片段。");
-            if (HasModel && string.IsNullOrWhiteSpace(Model)) throw new ArgumentException("请输入在线模型名称。");
+            if (HasBaseUrl) _ = ServerAddressPolicy.Validate(BaseUrl, SelectedProvider.Id);
+            if (HasModel && string.IsNullOrWhiteSpace(Model)) throw new ArgumentException("请输入模型名称。");
             var updated = settings.Current with { ProviderId = SelectedProvider.Id, LocalModelPath = LocalModelPath.Trim(), BaseUrl = BaseUrl.Trim(), Model = Model.Trim(), ApiKey = ApiKey.Trim(), Language = Language, Theme = Theme, Hotkey = hotkey };
             SettingsValidator.Validate(updated);
             await save(updated);

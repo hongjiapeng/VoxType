@@ -1,5 +1,18 @@
 # 开发验证记录
 
+## 2026-10-03 轻声与停顿收音调整
+
+用户反馈声音偏小、经常提示没有检测到语音。保留已验证可避免本机 APO 初始化故障的 RAW 录音路径，生产 `StopAsync` 接入 `WavConverter.ConvertForSpeech`：60 Hz 高通抑制直流偏置和低频轰鸣，按 20 ms 窗口累计至少 200 ms 的有效声音（约 -56 dBFS），不再让长停顿拉低整段平均而拒绝轻声。有效录音使用单个增益，目标有效窗口 RMS 0.1、上限 8 倍、峰值不超过 0.95。保留全部样本和时长，不裁剪停顿或尾音。能量检查不具备区分人声和持续环境噪声的能力，不声称完成了语音活动检测或完整降噪。
+
+- `dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --filter FullyQualifiedName~WavConverterTests --no-restore`：**Passed: 26, Failed: 0, Skipped: 0**。`Speech_QuietVoiceWithLongPauses_IsBoostedAndAccepted` 验证 60 秒录音中的轻声短句：旧检查拒绝，新检查接受，整段 RMS 仍低于旧阈值，声音增益受限且原缓冲区不变。其他回归检查静音/直流、低频轰鸣、低噪声、单次碰麦、200 ms 活动边界、250 ms 时长边界、峰值余量、正常音量目标、48 kHz 双声道转换及尾音保留。
+- `dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restore`：**Passed: 205, Failed: 0, Skipped: 0**。
+- `dotnet build VoxType.slnx -p:Platform=x64 --no-restore --no-incremental`：成功，**0 警告、0 错误**。
+- 隔离原生探针使用生产 `WasapiAudioCaptureService` 连续 10 次真实麦克风启动，交替 5 次停止、5 次取消全部成功，停止返回的音频已经过新处理路径。麦克风录音仅在内存处理并丢弃，未保存或上传。
+- 已知合成中文样本降低峰值至 0.012，前后各加 4 秒静音：旧检查拒绝，新检查接受；处理前整段 RMS 0.000554、处理后 0.004317，时长相同。真实 CPU Whisper base 推理仍包含预期的“你好”和“语音”。结果记录在忽略目录 `artifacts/runtime-smoke/audio-quality-result.json`；这不能替代用户本人真实语音的准确率验收。
+- 确认旧实例空闲后通过原有退出入口释放资源，使用 `winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local --no-build --detach --json` 更新并启动开发实例。更新后的包内 Infrastructure DLL 与构建输出 SHA-256 相同，诊断为 Idle、模型存在、浮层隐藏。沿用本地 Provider、模型和用户的 Ctrl + Shift + Space 快捷键。
+
+尚未完成真实人声、不同环境/距离/麦克风、与 Win+H 同句对比；不能宣称收音或识别质量已达到 Windows 语音输入。
+
 ## 环境
 
 2026-10-03，本机 Windows 11 家庭版 Insider Preview 10.0.26340，Intel Core Ultra 5 225H，14 核/14 逻辑处理器。项目目标 Windows 11 x64，最低版本 22000，目标 SDK 26100。本机 UI 截图按 125%（120 DPI）显示；未完成其他缩放/多屏验收。

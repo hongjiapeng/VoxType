@@ -67,3 +67,38 @@
 真实 WASAPI RAW 开关、已校验模型的合成中文样本推理、解锁桌面静态浮层实际点击及前台保持、真实识别结果自动输入记事本及恢复之前的 VoxType 文本/标记现已实测，完整实际人声/按键/记事本交付仍待验收，不能凭 160 项通过宣布整个 MVP 已验收。详细系统限制及 UI 失败原始记录见 `docs/verification.md`。
 
 生产 `LocalWhisperService` / `WhisperBackend` 的真实模型复测也已通过：10 次 zh/auto 推理只加载一次，原生推理中取消后等待完成、丢弃结果且可重试，真实 300087 ms 空闲时卸载，工作集降至 55.3 MiB；下次重新加载识别、退出释放，总加载/释放各 2 次。原五分钟计时未卸载的失败保留，修复及性能逐轮数据见 verification.md；这不替代实际人声记事本链路。
+
+## R2T2 feature test completion (2026-10-10)
+
+Broad Research → Plan → Implement workflow completed for the scoped server/provider feature. Earlier status content is preserved. New tests: 5 files under tests/VoxType.Tests/R2T2, 42 test methods, 115 executed cases (including data partitions). Existing MSTest 4.0.2 and package versions retained. Added only the server project and shared AspNetCore framework reference; the lock file records the project reference.
+
+Final narrow clean run:
+`dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -c Release -p:Platform=x64 --filter FullyQualifiedName~VoxType.Tests.R2T2 --nologo`
+Result: exit 0; 115 passed, 0 failed, 0 skipped; duration 10 s; no compiler/analyzer warnings. Parent separately reported full solution Release build with 0 warnings/errors and full regression 320 passed, 0 failed, 0 skipped, including all final 115 R2T2 cases (TRX verified).
+
+### Requirement-to-evidence review
+
+| Scoped requirement | Exact test evidence |
+|---|---|
+| Valid/invalid WAV and 250 ms/60 s boundaries | Duration_ExactAllowedBoundaries_Accepted; Duration_OutsideAllowedBoundaries_Rejected; UnsupportedPcmFormat_Rejected; MissingRequiredChunk_Rejected; DuplicateRequiredChunk_Rejected; TruncatedOrTrailingPartialChunk_Rejected; OddPcmDataSize_Rejected; OddSizedUnknownChunk_WithPadding_Accepted |
+| Loopback/LAN auth and local upstream configuration | Listener_LoopbackOrAuthenticatedLan_Accepted; UnsafeListener_Rejected; Upstream_MustRemainLocalRoot; Timeout_AllowedBoundaries_Accepted; Timeout_OutsideBoundaries_Rejected |
+| Private IP whitelist only for R2T2; shared HTTPS/loopback rules | R2T2_PrivateIpHttpAllowed_OriginalProviderStillRejects; R2T2_PublicOrAmbiguousHttpAndEmbeddedSecrets_Rejected; SharedLoopbackAndHttpsRules_AcceptedForBothProviders |
+| Exact audio/language/context payload and deterministic parameters | Request_ExactAudioContextLanguageAndParameters; SuccessfulAudio_ExactUpstreamPayloadAndResponseContract |
+| Response normalization and bounded invalid/truncated/empty responses | Response_PrefixOptionalAndPlainTextPreserved; InvalidResponse_ExactStatusCodeAndSanitization; ResponseSize_DeclaredAndUndeclaredBodiesBounded; Response_ExactlyAtByteLimit_Accepted |
+| Sanitized errors, no retries, cancellation, deadline and serialized calls | UpstreamFailure_SanitizedAndNeverRetried; NetworkFailure_SanitizedWithoutInnerException; CallerCancellationAndQueuedCancellation_ReleaseGateForNextRequest; ConcurrentRequests_AreSerialized_AndBothReturnTheirOwnResult; ResponseBodyAfterHeaders_IsIncludedInDeadline; Timeout_ConvertedTo504_AndGateReleased |
+| Readiness and authenticated model discovery | Readiness_UsesLocalHealthAndUpstreamKey; Readiness_NetworkFailureAndCancellation_ReturnUnavailable; HealthPublic_ModelsAuthenticated_AndReadinessTracksUpstream |
+| HTTP denial before upstream for invalid key/model/fields/WAV/media/size | MissingOrWrongKey_RejectedBeforeUpstream; InvalidFields_RejectedBeforeUpstream; InvalidWavAndUnsupportedMedia_RejectedBeforeUpstream; DuplicateModelAndOversizedAudio_RejectedBeforeUpstream |
+| HTTP JSON/text success and sanitization | SuccessfulAudio_ExactUpstreamPayloadAndResponseContract; UpstreamErrorBody_NeverExposedByHttpAdapter |
+| Provider identity, exact request forwarding and shared settings policy | R2T2Provider_ForwardsExactAudioKeyModelLanguageAndIdentity; VoxTypeProvider_UsesActualAdapterAndPreservesR2T2Identity; SettingsAndViewModel_R2T2LanSave_SharesPolicyAndPreservesKey |
+
+### test-gap-analysis review
+
+Reviewed caller-visible outcomes against actual source and concrete assertions after the clean baseline. No mutation experiment was requested or performed; this is source-to-assertion reasoning, not a mutation-score claim. Guard changes at WAV min/max, private network range boundaries, shared-provider policy, status mapping, prefix handling, body size, caller cancellation, gate release/serialization, and authorization all have direct witnesses. Final review found missing fmt/data chunks, odd PCM length, duplicate model values and first audio duration above 60 s lacked direct witnesses; added those bounded cases before the final clean run. No outstanding gap in the scoped acceptance checklist.
+
+Residual untested implementation partitions: oversized overall multipart envelope versus individual audio limit, IOExceptions during response body transfer, arbitrary malformed multipart boundary parser variants, and every possible invalid configuration string. These are not claimed exhaustively covered. Tests use a stub llama-server; actual Q4 inference, process supervisor scripts and container deployment remain separate parent verification responsibilities. No line/branch coverage was collected; the Roslyn pairing report is a static heuristic.
+
+### assertion-quality review
+
+Read the skill's .NET framework extension and reopened all generated test bodies. Meaningful assertions cover equality, Boolean readiness/cancellation/queued completion, null/inner-exception absence, exact exception type and code/status, typed multipart content, string sanitization, byte collections, side effects/call counts, and nested JSON structure. No assertion-free methods or trivial-only presence tests. Validator acceptance tests intentionally prove no exception for known valid fixtures; their fixture-length checks are incidental and do not substitute for the paired denial tests. No unwaited asynchronous assertions, ignored tests, self-comparisons, or mutation-score/coverage claims. Negative tests explicitly verify that invalid HTTP requests never reach upstream and that secrets never enter public error messages. Narrow build's initial two MSTEST0037 fixture-count warnings were fixed with Assert.HasCount and the final run is clean.
+
+HTTP tests launch only owned hidden child processes, drain redirected output, always dispose the fake Kestrel host, and kill/wait owned adapter children in finally. They never invoke production model binaries or read microphone/private recordings.

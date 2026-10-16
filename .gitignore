@@ -10,6 +10,8 @@ artifacts/
 ui-test-artifacts/
 test-results.json
 *.bin
+*.gguf
+r2t2-data/
 *.wav
 *.trx
 TestResults/

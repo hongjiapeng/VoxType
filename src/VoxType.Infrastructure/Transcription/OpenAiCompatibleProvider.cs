@@ -10,23 +10,22 @@ namespace VoxType.Infrastructure.Transcription;
 public sealed class OpenAiCompatibleProvider(HttpClient client, AppSettings settings, TimeProvider? clock = null) : ITranscriptionProvider
 {
     public const int MaximumResponseBytes = 1024 * 1024;
-    public string Id => "openai-compatible";
-    public string DisplayName => "OpenAI Compatible";
+    public string Id => settings.ProviderId == "r2t2-server" ? "r2t2-server" : "openai-compatible";
+    public string DisplayName => Id == "r2t2-server" ? "R2T2 本机／局域网" : "OpenAI Compatible";
     public static HttpClient CreateClient() => new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
         { Timeout = Timeout.InfiniteTimeSpan };
 
-    public static Uri Endpoint(string baseUrl)
+    public static Uri Endpoint(string baseUrl, string providerId = "openai-compatible")
     {
-        if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) ||
-            !(uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback) ||
-            uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
-            throw new TranscriptionException("服务器地址需为 HTTPS；本机服务器可使用 HTTP。地址不能含账号、查询参数或片段。", "configuration");
+        Uri uri;
+        try { uri = ServerAddressPolicy.Validate(baseUrl, providerId); }
+        catch (ArgumentException ex) { throw new TranscriptionException(ex.Message, "configuration"); }
         return new Uri(uri.AbsoluteUri.TrimEnd('/') + "/audio/transcriptions", UriKind.Absolute);
     }
 
     public async Task<TranscriptionResult> TranscribeAsync(AudioData audio, TranscriptionOptions options, CancellationToken cancellationToken)
     {
-        var endpoint = Endpoint(settings.BaseUrl);
+        var endpoint = Endpoint(settings.BaseUrl, Id);
         if (string.IsNullOrWhiteSpace(settings.Model)) throw new TranscriptionException("请填写在线识别模型名称。", "configuration");
         if (settings.ApiKey.Any(char.IsControl)) throw new TranscriptionException("API Key 含有无效字符，请重新填写。", "configuration");
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120), clock ?? TimeProvider.System);

@@ -1,0 +1,13 @@
+{
+  "modelRepository": "netease-youdao/Confucius4-R2T2-GGUF",
+  "modelRevision": "86ff0251cb9f456b63aeef5f80137f104e22869a",
+  "models": [
+    { "name": "Confucius4-R2T2-Q4_K_M.gguf", "size": 1107404736, "sha256": "fa3cb46c8c3a66a58812b9098ba6e96a0266d4e8c9b3cf5ba34432fd2f9f6466" },
+    { "name": "mmproj-Confucius4-R2T2-f16.gguf", "size": 641773984, "sha256": "0057b28b8814e431a28e3d1002343eef2d1676bbf8b0625351ae4550ac4e595d" }
+  ],
+  "runtimeVersion": "b10950",
+  "runtimes": {
+    "Cpu": { "name": "llama-b10950-bin-win-cpu-x64.zip", "size": 18426198, "sha256": "36acf4d8880042beaab9d6a248bd47255988b43049a0a91a79f349c4193b79b9" },
+    "Vulkan": { "name": "llama-b10950-bin-win-vulkan-x64.zip", "size": 31673509, "sha256": "787061f560eb2f14db7c03396cb56e59759b6dfccd162dc341b10cfa3bd5b779" }
+  }
+}

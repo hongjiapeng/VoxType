@@ -13,3 +13,13 @@
 静态 pairing 报告只用于定位测试，不代表行或分支覆盖率。后续模块实现后扩展需求矩阵，当前不宣称整个测试计划完成。
 
 2026-10-03 快捷键缺陷复测目标限定为 `HotkeyMatcher` 的异步状态核对及 `JsonSettingsStore` 的旧默认迁移：被拦截主键不在异步状态时仍保持录音，重复/主键松开/ESC 配对不退化；真实修饰键丢失仍取消且不重新启动。默认 Ctrl + Win + F8 验证左右修饰与三个松键顺序。迁移必须保留自定义键、Provider、路径和原 DPAPI 密文，仅执行一次；写入失败返回有效新配置和提示，原磁盘保留。既有 Alt + Space 测试改为显式自定义测试夹具，保留原序列断言。
+
+## R2T2 feature test research (2026-10-10)
+
+Bounded broad scope: ServerOptions, WavValidator, LlamaTranscriber, HTTP adapter contract, ServerAddressPolicy, R2T2 client provider and settings validation. Preserve earlier research and unrelated working-tree changes.
+
+Conventions: SDK-style .NET 10 Windows test project, MSTest 4.0.2, hand-written HttpMessageHandler doubles, exact exception/status/code assertions, no new package dependencies. HTTP contracts exercise actual Kestrel adapter process with an in-process loopback fake llama-server; no external service/model dependencies.
+
+Static pairing: ran skill Roslyn Find-UntestedSources.cs once; 56 sources / 15 tests, new server types unpaired, no suggested server path before reference exists. Established tests/VoxType.Tests used with R2T2 namespace subfolder. Static pairing is a heuristic, not coverage evidence.
+
+Acceptance: valid/invalid WAV and 250 ms/60 s boundaries; loopback/LAN auth and upstream configuration; private IP whitelist for new provider only; exact audio/language/context payload and deterministic parameters; prefix stripping and malformed/truncated/empty/oversized responses; sanitized errors; caller cancellation and serialized calls; readiness status; HTTP authorization, model/format/stream/file/WAV rejection before upstream; HTTP successful JSON/text responses and model discovery; R2T2 provider identity/request forwarding.

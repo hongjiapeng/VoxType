@@ -1,0 +1,7 @@
+**/bin
+**/obj
+.git
+r2t2-data
+artifacts
+TestResults
+.testagent

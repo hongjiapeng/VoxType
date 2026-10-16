@@ -34,25 +34,57 @@ public static class OverlayPreviewActivation {
  [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
  public static IntPtr ForegroundFocus() {
   var info = new GuiThreadInfo { Size = (uint)Marshal.SizeOf<GuiThreadInfo>() };
-  if (!GetGUIThreadInfo(0, ref info)) throw new InvalidOperationException("Foreground focus unavailable");
+  if (!GetGUIThreadInfo(0, ref info)) {
+   if (GetForegroundWindow() == IntPtr.Zero) return IntPtr.Zero;
+   throw new InvalidOperationException("Foreground focus unavailable");
+  }
   return info.Focus;
  }
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+ public static uint WindowProcess(IntPtr hwnd) { uint processId; GetWindowThreadProcessId(hwnd, out processId); return processId; }
  [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetStyle(IntPtr hwnd, int index);
+ [DllImport("gdi32.dll")] static extern IntPtr CreateRectRgn(int a, int b, int c, int d);
+ [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr region);
+ [DllImport("gdi32.dll")] static extern bool PtInRegion(IntPtr region, int x, int y);
+ [DllImport("user32.dll")] static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+ [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ public static bool HasCapsuleRegion(IntPtr hwnd, int width, int height) {
+  var oldContext = SetThreadDpiAwarenessContext(new IntPtr(-4));
+  var region = CreateRectRgn(0, 0, 0, 0);
+  try { return GetWindowRgn(hwnd, region) > 0 && !PtInRegion(region, 0, 0) && !PtInRegion(region, width - 1, 0)
+    && PtInRegion(region, width / 2, height / 2) && PtInRegion(region, 1, height / 2); }
+  finally { DeleteObject(region); SetThreadDpiAwarenessContext(oldContext); }
+ }
  public static void Activate(string id, string arguments) {
+  ActivateWithPid(id, arguments);
+ }
+ public static uint ActivateWithPid(string id, string arguments) {
   var obj = Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("45ba127d-10a8-46ea-8ab7-56ea9078943c")));
-  try { uint processId; Marshal.ThrowExceptionForHR(((IOverlayPreviewActivation)obj).ActivateApplication(id, arguments, 0, out processId)); }
+  try { uint processId; Marshal.ThrowExceptionForHR(((IOverlayPreviewActivation)obj).ActivateApplication(id, arguments, 0, out processId)); return processId; }
   finally { Marshal.ReleaseComObject(obj); }
  }
 }
 '@
 try {
+    $project = [xml](Get-Content -LiteralPath (Join-Path $root 'src/VoxType.App/VoxType.App.csproj') -Raw)
+    $framework = $project.SelectSingleNode('/Project/PropertyGroup/TargetFramework').InnerText
+    $outputPath = Join-Path $root "src/VoxType.App/bin/Debug/$framework/win-x64"
+    $family = $AppUserModelId.Split('!')[0]
+    $package = Get-AppxPackage | Where-Object PackageFamilyName -eq $family | Select-Object -First 1
+    if (-not $package) { throw 'Development package is not registered; run winapp run first' }
+    foreach ($assembly in @('VoxType.App.dll', 'VoxType.Infrastructure.dll')) {
+        $built = Get-FileHash -LiteralPath (Join-Path $outputPath $assembly)
+        $deployed = Get-FileHash -LiteralPath (Join-Path $package.InstallLocation $assembly)
+        if ($built.Hash -ne $deployed.Hash) { throw "Stale packaged binary: $assembly. Exit the fixture, then refresh with winapp run" }
+    }
+    $results.Add([pscustomobject]@{ name='deployed-binaries'; status='PASS' })
     if ($AppPid -eq 0) {
         $foreground = [OverlayPreviewActivation]::GetForegroundWindow()
         $keyboardFocus = [OverlayPreviewActivation]::ForegroundFocus()
-        $launch = Checked @('run', (Join-Path $root 'src/VoxType.App/VoxType.App.csproj'), '--arch', 'x64', '--no-build', '--detach', '--json',
-            '--args', '--check-overlay=voice --check-theme=dark') | ConvertFrom-Json
-        $AppPid = [int]$launch.ProcessId
+        # winapp run registers the development package before this script. Launch the
+        # registered AUMID directly, avoiding changes to its layout while an app is running.
+        $AppPid = [int][OverlayPreviewActivation]::ActivateWithPid($AppUserModelId, '--check-overlay=voice --check-theme=dark')
         if ($AppPid -le 0) { throw 'Cold launch did not return a PID' }
         UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '3000') | Out-Null
         if ([OverlayPreviewActivation]::GetForegroundWindow() -ne $foreground -or [OverlayPreviewActivation]::ForegroundFocus() -ne $keyboardFocus) {
@@ -75,7 +107,10 @@ try {
                     default { '正在聆听' }
                 }
                 UI @('wait-for', 'OverlayStatus', '--value', $title, '-t', '3000') | Out-Null
-                if ([OverlayPreviewActivation]::GetForegroundWindow() -ne $foreground) { throw 'Preview changed the foreground window' }
+                # Inspect the settled layout, after the 250 ms adaptive-width animation.
+                Start-Sleep -Milliseconds 350
+                $afterForeground = [OverlayPreviewActivation]::GetForegroundWindow()
+                if ($afterForeground -ne $foreground) { throw "Preview foreground changed: $foreground -> $afterForeground (process $([OverlayPreviewActivation]::WindowProcess($afterForeground)); overlay $AppPid)" }
                 if ([OverlayPreviewActivation]::ForegroundFocus() -ne $keyboardFocus) { throw 'Preview changed keyboard focus in the foreground application' }
                 $window = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'VoxType 语音输入' | Select-Object -First 1
                 if (-not $window) { throw 'Overlay window missing' }
@@ -89,13 +124,20 @@ try {
                 $detail = @($elements | Where-Object automationId -eq 'OverlayDetail')
                 if ($detail.Count -ne 1 -or $detail[0].isOffscreen) { throw 'Detail is missing or offscreen' }
                 $pane = $tree.windows[0].elements[0]
+                if (-not [OverlayPreviewActivation]::HasCapsuleRegion([IntPtr]$window.hwnd, [int]$pane.width, [int]$pane.height)) { throw 'Native capsule clipping is missing' }
+                $scale = [double]$tree.windows[0].scale
+                if ($pane.width -lt 259 * $scale -or $pane.width -gt 561 * $scale) { throw 'Adaptive width is out of bounds' }
+                if ($status[0].y -lt $pane.y + 8 * $scale) { throw 'Title reaches the top padding' }
                 if ($detail[0].y + $detail[0].height -gt $pane.y + $pane.height - 8) { throw 'Detail reaches the bottom padding' }
                 if ($detail[0].y -lt $status[0].y + $status[0].height) { throw 'Title and detail overlap' }
                 if ($state -eq 'failed' -and $detail[0].name -ne '检查麦克风后，按住快捷键重试。') { throw 'Silence error lacks a recovery action' }
+                if ($state -in @('listening', 'voice', 'tray') -and $detail[0].height -gt 22 * $scale) { throw 'Listening hint wraps instead of staying compact' }
                 if ($state -eq 'tray') {
                     UI @('invoke', 'StopRecording') | Out-Null
                     UI @('wait-for', 'OverlayStatus', '--value', '结束按钮检查通过', '-t', '2000') | Out-Null
-                    if ([OverlayPreviewActivation]::GetForegroundWindow() -ne $foreground) { throw 'Stop command changed foreground' }
+                    Start-Sleep -Milliseconds 350
+                    $afterForeground = [OverlayPreviewActivation]::GetForegroundWindow()
+                    if ($afterForeground -ne $foreground) { throw "Stop foreground changed: $foreground -> $afterForeground (process $([OverlayPreviewActivation]::WindowProcess($afterForeground)); overlay $AppPid)" }
                     if ([OverlayPreviewActivation]::ForegroundFocus() -ne $keyboardFocus) { throw 'Stop command changed keyboard focus' }
                 }
                 $path = Join-Path $artifacts "$name.png"
@@ -130,6 +172,34 @@ try {
         if ($motion.frameArtifacts.images -lt 4) { throw 'Motion recording has no meaningful frame changes' }
         $results.Add([pscustomobject]@{ name='motion-capture'; status='PASS' })
     } catch { $results.Add([pscustomobject]@{ name='motion-capture'; status='FAIL'; detail="$_" }) }
+    try {
+        [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=failed-long --check-theme=dark')
+        UI @('wait-for', 'OverlayStatus', '--value', '语音输入未完成', '-t', '2000') | Out-Null
+        Start-Sleep -Milliseconds 350
+        $window = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'VoxType 语音输入' | Select-Object -First 1
+        $video = Join-Path $artifacts 'resize.mp4'
+        $capture = Start-Process -FilePath (Get-Command winapp).Source -WindowStyle Hidden -PassThru `
+            -ArgumentList @('ui', 'record', '--on', 'local', '-w', "$($window.hwnd)", '--duration-sec', '3', '--fps', '30', '--frames', '--output', $video, '--json') `
+            -RedirectStandardOutput (Join-Path $artifacts 'resize-result.json') -RedirectStandardError (Join-Path $artifacts 'resize-error.txt')
+        Start-Sleep -Milliseconds 600
+        [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=voice --check-theme=dark')
+        Start-Sleep -Milliseconds 700
+        [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=failed-long --check-theme=dark')
+        if (-not $capture.WaitForExit(15000) -or $capture.ExitCode -ne 0) { throw 'Resize recording failed' }
+        $resize = Get-Content -LiteralPath (Join-Path $artifacts 'resize-result.json') -Raw | ConvertFrom-Json
+        if ($resize.frameArtifacts.images -lt 4) { throw 'Resize recording has no meaningful frame changes' }
+        foreach ($frame in Get-ChildItem -LiteralPath $resize.frameArtifacts.directory -Filter '*.jpg') {
+            $bitmap = [Drawing.Bitmap]::new($frame.FullName)
+            try {
+                $colors = [Collections.Generic.HashSet[int]]::new()
+                for ($x = 4; $x -lt $bitmap.Width; $x += 8) {
+                    for ($y = 4; $y -lt $bitmap.Height; $y += 8) { [void]$colors.Add($bitmap.GetPixel($x, $y).ToArgb()) }
+                }
+                if ($colors.Count -lt 4) { throw "Blank frame during resize: $($frame.Name)" }
+            } finally { $bitmap.Dispose() }
+        }
+        $results.Add([pscustomobject]@{ name='resize-capture'; status='PASS' })
+    } catch { $results.Add([pscustomobject]@{ name='resize-capture'; status='FAIL'; detail="$_" }) }
 } finally {
     try {
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=hide')

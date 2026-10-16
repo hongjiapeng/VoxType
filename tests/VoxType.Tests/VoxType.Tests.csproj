@@ -21,6 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\services\R2T2.Server\R2T2.Server.csproj" />
     <ProjectReference Include="..\..\src\VoxType.Core\VoxType.Core.csproj" />
     <ProjectReference Include="..\..\src\VoxType.Infrastructure\VoxType.Infrastructure.csproj" />
   </ItemGroup>
