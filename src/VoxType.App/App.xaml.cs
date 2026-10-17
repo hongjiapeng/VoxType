@@ -96,23 +96,31 @@ public partial class App : Application
         services.Overlay.ApplyTheme(previewTheme);
         var state = value switch
         {
-            "listening" or "voice" or "motion" or "tray" => VoxType.Core.Dictation.SessionState.Listening,
+            "listening" or "voice" or "motion" or "tray" or "preview" or "preview-long" => VoxType.Core.Dictation.SessionState.Listening,
             "processing" => VoxType.Core.Dictation.SessionState.Processing,
+            "injecting" => VoxType.Core.Dictation.SessionState.Injecting,
             "completed" => VoxType.Core.Dictation.SessionState.Completed,
-            "failed" or "failed-long" => VoxType.Core.Dictation.SessionState.Failed,
+            "failed" or "failed-long" or "failed-short" => VoxType.Core.Dictation.SessionState.Failed,
             _ => VoxType.Core.Dictation.SessionState.Idle
         };
         checkingLayout = state != VoxType.Core.Dictation.SessionState.Idle;
         string previewMessage = value switch
         {
             "failed" => "没有检测到足够音量，请检查麦克风并重试。",
+            "failed-short" => "录音太短，请按住快捷键多说一会儿。",
             "failed-long" => "无法将识别结果发送到当前应用。文本已复制到剪贴板，请返回输入框后手动粘贴。",
             "processing" => "正在把语音转换为文字…",
             "completed" => "文字已输入到当前应用",
             _ => "静态布局检查"
         };
         services.Overlay.Update(new(++layoutSession, state, previewMessage, "布局检查", true,
-            new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value == "tray"));
+            new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value == "tray",
+            PartialText: value switch
+            {
+                "preview" => "测试，测试。",
+                "preview-long" => "这是一段很长的实时转写内容，用来检查浮窗在连续说话时仍然保持紧凑，不会突然拉长，也不会把文字挤到下一行。",
+                _ => null
+            }));
         if (value == "voice") services.Overlay.PreviewAudioLevels();
         if (value == "motion") services.Overlay.PreviewAudioLevels(true);
 #endif

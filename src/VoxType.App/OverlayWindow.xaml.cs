@@ -124,8 +124,6 @@ public sealed partial class OverlayWindow : Window, IDisposable
     }
     private void ResizeToContent(bool animate)
     {
-        // Grid reserves both column gaps even when the trailing button is collapsed.
-        double chrome = 2 + 48 + 44 + 28 + (ViewModel.ShowStop ? 48 : 0);
         // Measure detached text. Measuring the live stack with a different constraint
         // disturbs WinUI's current arrange pass and can clip the first line after resizing.
         var titleMeasure = new Microsoft.UI.Xaml.Controls.TextBlock
@@ -136,18 +134,16 @@ public sealed partial class OverlayWindow : Window, IDisposable
         var detailMeasure = new Microsoft.UI.Xaml.Controls.TextBlock
         {
             Text = ViewModel.Detail, FontFamily = DetailText.FontFamily, FontSize = DetailText.FontSize,
-            TextWrapping = TextWrapping.Wrap, MaxLines = 2
+            MaxLines = 1
         };
         var unlimited = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
         titleMeasure.Measure(unlimited);
         detailMeasure.Measure(unlimited);
-        double nextWidth = Math.Clamp(Math.Ceiling(Math.Max(titleMeasure.DesiredSize.Width, detailMeasure.DesiredSize.Width) + chrome + 2), 260, 560);
-        // Keep a stable reading surface while tokens arrive, instead of resizing per token.
-        if (ViewModel.IsStreamingPreview) nextWidth = 560;
-        // Decide width from natural text size, then measure wrapping at that final width.
-        // Using the longest wrapped line as the width can cause an extra orphan line.
-        detailMeasure.Measure(new Windows.Foundation.Size(nextWidth - chrome, double.PositiveInfinity));
-        double nextHeight = Math.Max(56, Math.Ceiling(titleMeasure.DesiredSize.Height + detailMeasure.DesiredSize.Height + 20));
+        // Every state shares one compact width, including live previews and tray controls.
+        // Only height adapts to the system text scale; content never stretches the capsule.
+        const double nextWidth = 320;
+        double textHeight = titleMeasure.DesiredSize.Height + (ViewModel.ShowDetail ? detailMeasure.DesiredSize.Height + 2 : 0);
+        double nextHeight = Math.Max(56, Math.Ceiling(textHeight + 20));
         if (Math.Abs(nextWidth - targetWidth) < 0.5 && Math.Abs(nextHeight - targetHeight) < 0.5 && resizeTimer.IsEnabled) return;
         resizeTimer.Stop();
         targetWidth = nextWidth; targetHeight = nextHeight;

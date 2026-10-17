@@ -21,10 +21,10 @@
                 </VisualStateGroup>
             </VisualStateManager.VisualStateGroups>
             <Border x:Name="Capsule" BorderBrush="{ThemeResource OverlayStrokeBrush}"
-                    BorderThickness="1" CornerRadius="28" Padding="24,8">
-                <Grid x:Name="ContentPanel" ColumnSpacing="14" VerticalAlignment="Center">
+                    BorderThickness="1" CornerRadius="28" Padding="20,8">
+                <Grid x:Name="ContentPanel" ColumnSpacing="12" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="40" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -43,16 +43,19 @@
                                       Visibility="{x:Bind local:MainPage.Visible(ViewModel.IsProcessing), Mode=OneWay}"
                                       AutomationProperties.Name="语音输入处理中" />
                     </Grid>
-                    <StackPanel x:Name="TextPanel" Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <StackPanel x:Name="TextPanel" Grid.Column="1" Spacing="2" VerticalAlignment="Center"
+                                ToolTipService.ToolTip="{x:Bind ViewModel.FullDetail, Mode=OneWay}">
                         <TextBlock x:Name="StatusText" Text="{x:Bind ViewModel.Title, Mode=OneWay}"
                                    FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                   AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="OverlayStatus" />
+                                   AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="OverlayStatus"
+                                   AutomationProperties.HelpText="{x:Bind ViewModel.FullDetail, Mode=OneWay}" />
                         <TextBlock x:Name="DetailText" Text="{x:Bind ViewModel.Detail, Mode=OneWay}" FontSize="12"
-                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                   MaxLines="1" TextTrimming="CharacterEllipsis"
+                                   Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowDetail), Mode=OneWay}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    AutomationProperties.AutomationId="OverlayDetail" AutomationProperties.LiveSetting="Polite"
-                                   ToolTipService.ToolTip="{x:Bind ViewModel.Detail, Mode=OneWay}" />
+                                   AutomationProperties.HelpText="{x:Bind ViewModel.FullDetail, Mode=OneWay}" />
                     </StackPanel>
                     <Button Grid.Column="2" Content="结束" FontSize="12" MinHeight="32" MinWidth="48"
                             Padding="10,4" CornerRadius="16" VerticalAlignment="Center"

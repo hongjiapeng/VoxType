@@ -17,7 +17,7 @@ function Checked([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "winapp failed: $($Arguments -join ' ')`n$($output -join "`n")" }
     $output
 }
-function UI([string[]]$Arguments) { Checked (@('ui') + $Arguments + @('--on', 'local', '-a', "$AppPid")) }
+function UI([string[]]$Arguments) { Checked (@('ui') + $Arguments + @('-a', "$AppPid")) }
 function Walk($Nodes) { foreach ($node in $Nodes) { $node; Walk $node.children } }
 Add-Type @'
 using System;
@@ -41,6 +41,8 @@ public static class OverlayPreviewActivation {
   return info.Focus;
  }
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
  public static uint WindowProcess(IntPtr hwnd) { uint processId; GetWindowThreadProcessId(hwnd, out processId); return processId; }
  [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetStyle(IntPtr hwnd, int index);
@@ -93,7 +95,7 @@ try {
         $results.Add([pscustomobject]@{ name='cold-start-focus'; status='PASS' })
     }
     foreach ($theme in @('dark', 'light')) {
-        foreach ($state in @('listening', 'voice', 'processing', 'completed', 'failed', 'failed-long', 'tray')) {
+        foreach ($state in @('listening', 'voice', 'preview', 'preview-long', 'processing', 'injecting', 'completed', 'failed', 'failed-short', 'failed-long', 'tray')) {
             $name = "$theme-$state"
             try {
                 $foreground = [OverlayPreviewActivation]::GetForegroundWindow()
@@ -102,12 +104,14 @@ try {
                 $title = switch ($state) {
                     'processing' { '正在识别' }
                     'completed' { '已发送文本' }
+                    'injecting' { '正在发送文本' }
                     'failed' { '没有听到声音' }
-                    'failed-long' { '语音输入未完成' }
+                    'failed-short' { '录音太短' }
+                    'failed-long' { '文本已复制' }
                     default { '正在聆听' }
                 }
                 UI @('wait-for', 'OverlayStatus', '--value', $title, '-t', '3000') | Out-Null
-                # Inspect the settled layout, after the 250 ms adaptive-width animation.
+                # Inspect after entrance and any text-scale height adjustment settle.
                 Start-Sleep -Milliseconds 350
                 $afterForeground = [OverlayPreviewActivation]::GetForegroundWindow()
                 if ($afterForeground -ne $foreground) { throw "Preview foreground changed: $foreground -> $afterForeground (process $([OverlayPreviewActivation]::WindowProcess($afterForeground)); overlay $AppPid)" }
@@ -122,16 +126,20 @@ try {
                 $status = @($elements | Where-Object automationId -eq 'OverlayStatus')
                 if ($status.Count -ne 1 -or $status[0].isOffscreen) { throw 'Status is missing or offscreen' }
                 $detail = @($elements | Where-Object automationId -eq 'OverlayDetail')
-                if ($detail.Count -ne 1 -or $detail[0].isOffscreen) { throw 'Detail is missing or offscreen' }
+                $hasDetail = $state -notin @('injecting', 'completed')
+                if ($hasDetail -and ($detail.Count -ne 1 -or $detail[0].isOffscreen)) { throw 'Detail is missing or offscreen' }
+                if (-not $hasDetail -and @($detail | Where-Object { -not $_.isOffscreen }).Count -gt 0) { throw 'Delivery still shows redundant detail' }
                 $pane = $tree.windows[0].elements[0]
                 if (-not [OverlayPreviewActivation]::HasCapsuleRegion([IntPtr]$window.hwnd, [int]$pane.width, [int]$pane.height)) { throw 'Native capsule clipping is missing' }
-                $scale = [double]$tree.windows[0].scale
-                if ($pane.width -lt 259 * $scale -or $pane.width -gt 561 * $scale) { throw 'Adaptive width is out of bounds' }
+                $scale = [OverlayPreviewActivation]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
+                if ([Math]::Abs($pane.width - 320 * $scale) -gt 1) { throw 'Capsule width changed with its content' }
                 if ($status[0].y -lt $pane.y + 8 * $scale) { throw 'Title reaches the top padding' }
-                if ($detail[0].y + $detail[0].height -gt $pane.y + $pane.height - 8) { throw 'Detail reaches the bottom padding' }
-                if ($detail[0].y -lt $status[0].y + $status[0].height) { throw 'Title and detail overlap' }
-                if ($state -eq 'failed' -and $detail[0].name -ne '检查麦克风后，按住快捷键重试。') { throw 'Silence error lacks a recovery action' }
-                if ($state -in @('listening', 'voice', 'tray') -and $detail[0].height -gt 22 * $scale) { throw 'Listening hint wraps instead of staying compact' }
+                if ($hasDetail) {
+                    if ($detail[0].y + $detail[0].height -gt $pane.y + $pane.height - 8 * $scale) { throw 'Detail reaches the bottom padding' }
+                    if ($detail[0].y -lt $status[0].y + $status[0].height) { throw 'Title and detail overlap' }
+                    if ($detail[0].height -gt 22 * $scale) { throw 'Detail wraps instead of staying compact' }
+                }
+                if ($state -eq 'failed' -and $detail[0].name -ne '检查麦克风后重试') { throw 'Silence error lacks a recovery action' }
                 if ($state -eq 'tray') {
                     UI @('invoke', 'StopRecording') | Out-Null
                     UI @('wait-for', 'OverlayStatus', '--value', '结束按钮检查通过', '-t', '2000') | Out-Null
@@ -141,7 +149,7 @@ try {
                     if ([OverlayPreviewActivation]::ForegroundFocus() -ne $keyboardFocus) { throw 'Stop command changed keyboard focus' }
                 }
                 $path = Join-Path $artifacts "$name.png"
-                Checked @('ui', 'screenshot', '--on', 'local', '-w', "$($window.hwnd)", '--output', $path) | Out-Null
+                Checked @('ui', 'screenshot', '-w', "$($window.hwnd)", '--output', $path) | Out-Null
                 if (-not (Test-Path -LiteralPath $path)) { throw 'Screenshot missing' }
                 $bitmap = [Drawing.Bitmap]::new($path)
                 try {
@@ -158,11 +166,11 @@ try {
     }
     try {
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=listening --check-theme=dark')
-        UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '2000') | Out-Null
+        UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '5000') | Out-Null
         $window = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'VoxType 语音输入' | Select-Object -First 1
         $video = Join-Path $artifacts 'motion.mp4'
         $capture = Start-Process -FilePath (Get-Command winapp).Source -WindowStyle Hidden -PassThru `
-            -ArgumentList @('ui', 'record', '--on', 'local', '-w', "$($window.hwnd)", '--duration-sec', '3', '--fps', '30', '--frames', '--output', $video, '--json') `
+            -ArgumentList @('ui', 'record', '-w', "$($window.hwnd)", '--duration-sec', '3', '--fps', '30', '--frames', '--output', $video, '--json') `
             -RedirectStandardOutput (Join-Path $artifacts 'motion-result.json') -RedirectStandardError (Join-Path $artifacts 'motion-error.txt')
         Start-Sleep -Milliseconds 600
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=motion --check-theme=dark')
@@ -174,12 +182,12 @@ try {
     } catch { $results.Add([pscustomobject]@{ name='motion-capture'; status='FAIL'; detail="$_" }) }
     try {
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=failed-long --check-theme=dark')
-        UI @('wait-for', 'OverlayStatus', '--value', '语音输入未完成', '-t', '2000') | Out-Null
+        UI @('wait-for', 'OverlayStatus', '--value', '文本已复制', '-t', '5000') | Out-Null
         Start-Sleep -Milliseconds 350
         $window = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'VoxType 语音输入' | Select-Object -First 1
         $video = Join-Path $artifacts 'resize.mp4'
         $capture = Start-Process -FilePath (Get-Command winapp).Source -WindowStyle Hidden -PassThru `
-            -ArgumentList @('ui', 'record', '--on', 'local', '-w', "$($window.hwnd)", '--duration-sec', '3', '--fps', '30', '--frames', '--output', $video, '--json') `
+            -ArgumentList @('ui', 'record', '-w', "$($window.hwnd)", '--duration-sec', '3', '--fps', '30', '--frames', '--output', $video, '--json') `
             -RedirectStandardOutput (Join-Path $artifacts 'resize-result.json') -RedirectStandardError (Join-Path $artifacts 'resize-error.txt')
         Start-Sleep -Milliseconds 600
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=voice --check-theme=dark')
@@ -187,10 +195,13 @@ try {
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=failed-long --check-theme=dark')
         if (-not $capture.WaitForExit(15000) -or $capture.ExitCode -ne 0) { throw 'Resize recording failed' }
         $resize = Get-Content -LiteralPath (Join-Path $artifacts 'resize-result.json') -Raw | ConvertFrom-Json
-        if ($resize.frameArtifacts.images -lt 4) { throw 'Resize recording has no meaningful frame changes' }
+        # A fixed-width capsule has three settled frames: error, listening, error.
+        # It should no longer produce intermediate width-animation frames.
+        if ($resize.frameArtifacts.images -lt 3) { throw 'State transition recording is missing a visible state' }
         foreach ($frame in Get-ChildItem -LiteralPath $resize.frameArtifacts.directory -Filter '*.jpg') {
             $bitmap = [Drawing.Bitmap]::new($frame.FullName)
             try {
+                if ([Math]::Abs($bitmap.Width - $window.width) -gt 1) { throw "Capsule width changed during transition: $($frame.Name)" }
                 $colors = [Collections.Generic.HashSet[int]]::new()
                 for ($x = 4; $x -lt $bitmap.Width; $x += 8) {
                     for ($y = 4; $y -lt $bitmap.Height; $y += 8) { [void]$colors.Add($bitmap.GetPixel($x, $y).ToArgb()) }
@@ -198,13 +209,20 @@ try {
                 if ($colors.Count -lt 4) { throw "Blank frame during resize: $($frame.Name)" }
             } finally { $bitmap.Dispose() }
         }
-        $results.Add([pscustomobject]@{ name='resize-capture'; status='PASS' })
-    } catch { $results.Add([pscustomobject]@{ name='resize-capture'; status='FAIL'; detail="$_" }) }
+        $results.Add([pscustomobject]@{ name='stable-width-capture'; status='PASS' })
+    } catch { $results.Add([pscustomobject]@{ name='stable-width-capture'; status='FAIL'; detail="$_" }) }
 } finally {
     try {
+        $overlayWindow = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'VoxType 语音输入' | Select-Object -First 1
         [OverlayPreviewActivation]::Activate($AppUserModelId, '--check-overlay=hide')
-        UI @('wait-for', 'OverlayStatus', '--gone', '-t', '2000') | Out-Null
-        Checked @('ui', 'yield', '--on', 'local') | Out-Null
+        $hideDeadline = [DateTime]::UtcNow.AddSeconds(5)
+        while ($overlayWindow -and [OverlayPreviewActivation]::IsWindowVisible([IntPtr]$overlayWindow.hwnd) -and [DateTime]::UtcNow -lt $hideDeadline) {
+            Start-Sleep -Milliseconds 100
+        }
+        if ($overlayWindow -and [OverlayPreviewActivation]::IsWindowVisible([IntPtr]$overlayWindow.hwnd)) { throw 'Fixture overlay did not hide' }
+        $results.Add([pscustomobject]@{ name='fixture-cleanup'; status='PASS' })
+    } catch {
+        $results.Add([pscustomobject]@{ name='fixture-cleanup'; status='FAIL'; detail="$_" })
     } finally { $env:WINAPP_UI_WORKFLOW_ID = $previousWorkflow }
     $failed = @($results | Where-Object status -eq 'FAIL').Count
     [ordered]@{ target='local'; appPid=$AppPid; passed=$results.Count - $failed; failed=$failed; results=@($results.ToArray()); screenshots=@($screenshots.ToArray()) } |

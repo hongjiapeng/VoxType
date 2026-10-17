@@ -9,7 +9,9 @@ public partial class OverlayViewModel : ObservableObject
     private long previewSession;
     private string transcriptPreview = "";
     [ObservableProperty] public partial string Title { get; set; } = "";
-    [ObservableProperty] public partial string Detail { get; set; } = "";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowDetail))] public partial string Detail { get; set; } = "";
+    [ObservableProperty] public partial string FullDetail { get; set; } = "";
+    public bool ShowDetail => Detail.Length > 0;
     [ObservableProperty] public partial string Glyph { get; set; } = "\uE720";
     [ObservableProperty] public partial bool IsListening { get; set; }
     [ObservableProperty] public partial bool IsProcessing { get; set; }
@@ -30,7 +32,7 @@ public partial class OverlayViewModel : ObservableObject
         if (update.State is not (SessionState.Listening or SessionState.Stopping or SessionState.Processing or SessionState.Injecting or SessionState.Completed))
             transcriptPreview = "";
         IsListening = update.State == SessionState.Listening;
-        IsStreamingPreview = transcriptPreview.Length > 0;
+        IsStreamingPreview = transcriptPreview.Length > 0 && update.State is SessionState.Listening or SessionState.Stopping or SessionState.Processing;
         IsProcessing = update.State is SessionState.Starting or SessionState.Stopping or SessionState.Processing or SessionState.Injecting or SessionState.Cancelling;
         ShowStop = update.FromTray && IsListening;
         ShowIcon = !IsListening && !IsProcessing;
@@ -45,20 +47,37 @@ public partial class OverlayViewModel : ObservableObject
             SessionState.Failed when update.Message.Contains("没有检测到足够音量", StringComparison.Ordinal) => "没有听到声音",
             _ => "语音输入未完成"
         };
-        Detail = IsListening ? update.FromTray ? "点击结束完成 · Esc 取消" : "松开快捷键完成 · Esc 取消"
-            : update.State == SessionState.Failed && update.Message.Contains("没有检测到足够音量", StringComparison.Ordinal)
-                ? "检查麦克风后，按住快捷键重试。" : update.Message;
+        Detail = update.State switch
+        {
+            SessionState.Listening => update.FromTray ? "Esc 取消" : "松开结束 · Esc 取消",
+            SessionState.Stopping or SessionState.Processing => "Esc 取消",
+            SessionState.Failed => update.Message,
+            _ => ""
+        };
+        FullDetail = transcriptPreview.Length > 0 ? transcriptPreview : update.Message;
         if (IsStreamingPreview)
         {
-            if (IsListening) Title = "正在聆听 · 实时预览";
-            else if (update.State == SessionState.Processing) Title = "正在识别 · Esc 取消";
-            // Show the newest text within the compact two-line capsule.
-            int start = Math.Max(0, transcriptPreview.Length - 64);
+            // Keep only the newest phrase visible; the tooltip retains the full transcript.
+            int start = Math.Max(0, transcriptPreview.Length - (ShowStop ? 12 : 16));
             if (start > 0 && char.IsLowSurrogate(transcriptPreview[start])) start--;
-            Detail = start > 0 ? "…" + transcriptPreview[start..] : transcriptPreview;
+            Detail = (start > 0 ? "…" + transcriptPreview[start..] : transcriptPreview)
+                .Replace('\r', ' ').Replace('\n', ' ');
         }
         if (update.State == SessionState.Failed)
-            Detail = Detail.Replace("。文本已复制到剪贴板", "。\n文本已复制到剪贴板", StringComparison.Ordinal);
+        {
+            if (update.Message.Contains("没有检测到足够音量", StringComparison.Ordinal))
+                Detail = "检查麦克风后重试";
+            else if (update.Message.Contains("录音太短", StringComparison.Ordinal))
+            {
+                Title = "录音太短";
+                Detail = update.FromTray ? "请再录久一点" : "按住快捷键多说一会儿";
+            }
+            else if (update.Message.Contains("文本已复制", StringComparison.Ordinal))
+            {
+                Title = "文本已复制";
+                Detail = "请回到输入框手动粘贴";
+            }
+        }
         Glyph = update.State == SessionState.Completed ? "\uE73E" : update.State == SessionState.Failed ? "\uE783" : "\uE720";
     }
 }
