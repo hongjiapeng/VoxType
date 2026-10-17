@@ -28,8 +28,7 @@ if (-not $LlamaServerPath) { $LlamaServerPath = Join-Path $dataRoot "runtime/$Ba
 $LlamaServerPath = [IO.Path]::GetFullPath($LlamaServerPath)
 if (-not (Test-Path -LiteralPath $LlamaServerPath -PathType Leaf)) { throw "找不到 llama-server：$LlamaServerPath" }
 foreach ($binding in @(@{ Address = $ip; Port = $Port }, @{ Address = [Net.IPAddress]::Loopback; Port = $LlamaPort })) {
-    $probe = [Net.Sockets.TcpListener]::new($binding.Address, $binding.Port)
-    try { $probe.Start() } finally { $probe.Stop() }
+    Assert-R2T2PortAvailable -Address $binding.Address -Port $binding.Port
 }
 $publishDirectory = Join-Path $dataRoot 'adapter'
 $buildDirectory = Join-Path $dataRoot 'build'

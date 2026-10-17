@@ -188,3 +188,23 @@ git diff --check
 | 悬浮层可读、比较开关和旧协议兼容 | `StreamingPreview_LongTextShowsTailWithoutBreakingSurrogatePair`、`StreamingPreview_DisplaysRecognizedTextAndClearsItOnNextState`、`R2T2StreamingToggle_SavesExplicitChoice`、`StreamingSetting_DefaultsOnForOldFiles_AndPersistsDisabledChoice`、`StreamingDisabledOrOtherProviderKeepsJsonRequest` |
 
 本次未完成真实 Q4 流式延迟和原生 UI 体验验收。机器上已有 Vulkan llama-server 与旧适配器运行，计划以公开样例和临时适配器验证真实模型；自动审批拒绝了包含下载样例和启动临时适配器的命令，只返回 `blocked by policy`，未提供具体原因。没有据自动化上游替身的成功宣称真实模型首字延迟或加速效果。未停止已有进程、修改用户现有配置或安装新 MSIX。
+
+### 2026-10-17 R2T2 重复准备与端口占用修复
+
+用户报告准备资源时 `ggml-vulkan.dll` 无法删除、启动时报套接字地址被占用。通过进程模块和端口查询，确认本仓库的旧 `llama-server` PID 14536 仍加载该 DLL 并监听 8273，适配器 PID 13064 监听 8272；两个进程的父进程 23760 已不存在。核对可执行路径和适配器 DLL 路径后，清理这两个遗留进程，端口释放。
+
+准备脚本改为对照已验证的 ZIP 内容逐文件比较大小和 SHA-256，跳过匹配文件，只原子替换缺失或变化的文件；替换前检查所有现有目标的写入占用，发现冲突则在任何文件变动前给出提示。ZIP 的目录穿越、重复目标和缺失 `llama-server.exe` 也会在写入前拒绝。启动脚本为端口冲突显示端口、占用进程 PID、名称与停止旧服务的指引。
+
+真实运行验证：`pwsh -NoProfile -File scripts/prepare-r2t2.ps1 -Backend Vulkan` 成功复用全部文件；随后使用新版脚本启动 Q4/Vulkan，`http://127.0.0.1:8272/health` 返回 `{"status":"ok"}`。服务运行中再次准备成功，`ggml-vulkan.dll` 的修改时间保持不变。重复启动被明确拒绝，提示端口 8272 和适配器 PID 28844；原服务继续健康。已将三个修复后的脚本同步到当前运行的开发版 AppX 布局及其构建输出，无需重新下载模型。
+
+```powershell
+dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restore --filter FullyQualifiedName~R2T2RuntimeScriptTests --nologo --logger 'trx;LogFileName=r2t2-runtime-scripts.trx'
+```
+
+脚本回归 **Passed: 9, Failed: 0, Skipped: 0**；测试以独立 PowerShell 7 进程执行真实公共脚本，使用临时 ZIP、文件共享／独占锁与本机随机端口。PowerShell AST 语法检查和 `git diff --check` 通过。
+
+| Requirement | Evidence |
+|---|---|
+| 正确复用被占用的有效运行时，恢复缺失／变化文件 | `RuntimePreparation_ReusesLockedValidFilesAndRepairsOnlyChangedFiles`，以及真实 Vulkan 服务运行中的重复准备检查 |
+| 冲突和无效压缩包不会造成部分覆盖 | `RuntimePreparation_LockedModifiedFileFailsBeforeChangingOtherFiles`、`RuntimePreparation_InvalidArchiveIsRejectedBeforeAnyWrite` |
+| 端口冲突提示明确，检查自身释放资源 | `PortProbe_ReportsOccupiedPortAndPid_AndReleasesItsOwnProbe`，以及真实服务重复启动检查 |

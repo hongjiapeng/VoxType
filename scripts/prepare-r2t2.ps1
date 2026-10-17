@@ -47,9 +47,8 @@ if (-not $ModelsOnly) {
     $archive = Join-Path $runtimeDirectory $runtime.name
     $url = "https://github.com/ggml-org/llama.cpp/releases/download/$($manifest.runtimeVersion)/$($runtime.name)"
     Save-VerifiedAsset $url $archive $runtime
-    # Keep the verified archive. Re-extraction repairs missing/modified runtime files.
-    Expand-Archive -LiteralPath $archive -DestinationPath $runtimeDirectory -Force
-    if (-not (Test-Path -LiteralPath (Join-Path $runtimeDirectory 'llama-server.exe'))) { throw '运行时压缩包中没有 llama-server.exe。' }
+    # Verify extracted files against the pinned archive; leave identical loaded DLLs alone.
+    Expand-R2T2Runtime -Archive $archive -Destination $runtimeDirectory
 }
 Write-Host "准备完成：$dataRoot"
 Write-Host '模型权重遵循网易有道 MODEL_LICENSE，详见 docs/r2t2-server.md。'
