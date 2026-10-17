@@ -49,7 +49,7 @@ public sealed class OpenAiCompatibleProvider(HttpClient client, AppSettings sett
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 throw streaming && response.StatusCode == HttpStatusCode.BadRequest
-                    ? new TranscriptionException("R2T2 服务拒绝流式请求，请检查模型和语言；若使用旧版服务，请更新服务或关闭“流式显示识别结果”。", "request")
+                    ? new TranscriptionException("R2T2 服务拒绝流式请求，请检查模型和语言；若使用旧版服务，请更新服务或关闭“实时识别预览”。", "request")
                     : StatusError(response.StatusCode);
             if (response.Content.Headers.ContentLength > MaximumResponseBytes) throw Oversize();
             await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);

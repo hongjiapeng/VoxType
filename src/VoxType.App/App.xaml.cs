@@ -76,6 +76,7 @@ public partial class App : Application
             string modelPath = VoxType.Infrastructure.Transcription.WhisperModelPath.Resolve(services.Settings.Current.LocalModelPath);
             var diagnosticState = new { services.Coordinator?.IsBusy, services.Coordinator?.State,
                 services.Settings.Current.ProviderId, Hotkey = services.Settings.Current.Hotkey.DisplayName, SettingsVersion = services.Settings.Current.Version,
+                services.Settings.Current.R2T2StreamOutput,
                 ModelPath = modelPath, ModelExists = System.IO.File.Exists(modelPath),
                 DefaultModelPath = services.SettingsViewModel.DefaultModelPath,
                 SettingsPath = VoxType.Infrastructure.Settings.JsonSettingsStore.DefaultPath, OverlayVisible = services.Overlay.AppWindow.IsVisible };

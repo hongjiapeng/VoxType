@@ -25,7 +25,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local --args '--se
 
 ## 配置识别
 
-**R2T2 本机／局域网** 已支持 `Confucius4-R2T2-Q4_K_M.gguf`，通过独立服务连接本机或局域网设备。先运行 `pwsh -File scripts/prepare-r2t2.ps1`，再运行 `pwsh -File scripts/start-r2t2.ps1`；设置中选择 R2T2，Base URL 填 `http://127.0.0.1:8272/v1`，模型填 `r2t2-q4`。需要主模型和音频投影文件，合计约 1.63 GiB。支持明确选择 HF-Mirror 下载源、Windows CPU/Vulkan 和 Linux Docker Compose 部署。默认开启“流式显示识别结果”：松开按键后，悬浮层逐步显示模型生成的文字，完成后一次性输入；按 Esc 丢弃预览。设置中关闭开关并保存即可比较整段返回效果。升级后需重新启动 R2T2 服务和 VoxType；连接旧服务时请关闭开关。录音仍在松开按键后上传。局域网配置及接口说明见 [R2T2 部署文档](docs/r2t2-server.md)，实际 Q4 验证见 [R2T2 验证记录](docs/r2t2-verification.md)。
+**R2T2 本机／局域网** 已支持 `Confucius4-R2T2-Q4_K_M.gguf`，通过独立服务连接本机或局域网设备。先运行 `pwsh -File scripts/prepare-r2t2.ps1`，再运行 `pwsh -File scripts/start-r2t2.ps1`；设置中选择 R2T2，Base URL 填 `http://127.0.0.1:8272/v1`，模型填 `r2t2-q4`。需要主模型和音频投影文件，合计约 1.63 GiB。支持明确选择 HF-Mirror 下载源、Windows CPU/Vulkan 和 Linux Docker Compose 部署。默认开启“实时识别预览”：按住按键说话时，持续识别最新录音并在悬浮层更新临时文字；松开后对完整录音校正，完成后一次性输入。临时文字可能变化，长录音和较慢设备的预览更新会更慢；当前使用录音快照重复识别，尚未接入官方原生分块推理。按 Esc 丢弃预览。关闭开关并保存后，只在松开后上传和识别。升级后需重新启动 VoxType；连接旧版适配服务时请关闭开关或先升级并重启服务。局域网配置及接口说明见 [R2T2 部署文档](docs/r2t2-server.md)，实际 Q4 验证见 [R2T2 验证记录](docs/r2t2-verification.md)。
 
 Windows 本机 R2T2 也可直接在 VoxType“语音识别 → 本机 R2T2 服务”选择 `cpu` 或 `vulkan`、指定数据目录，然后依次点击“准备本机资源”“启动本机服务”。这会打开可见的 PowerShell 7 窗口：准备资源需用户主动下载约 1.63 GiB 模型，启动时会编译适配服务并在窗口中常驻；关闭服务请按 Ctrl+C。启动按钮会保存本机地址和模型别名。需要已安装 PowerShell 7 与 .NET 10 SDK；远端 R2T2 仍在其运行设备上选择后端，VoxType 本机按钮不会修改远端服务。
 

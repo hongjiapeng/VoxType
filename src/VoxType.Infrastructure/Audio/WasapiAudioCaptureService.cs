@@ -4,7 +4,7 @@ using VoxType.Core.Audio;
 
 namespace VoxType.Infrastructure.Audio;
 
-public sealed class WasapiAudioCaptureService : IAudioCaptureService
+public sealed class WasapiAudioCaptureService : IAudioCaptureService, IAudioPreviewSource
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly object bufferLock = new();
@@ -113,6 +113,25 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService
             return await Task.Run(() => WavConverter.ConvertForSpeech(bytes, inputFormat), cancellationToken).ConfigureAwait(false);
         }
         finally { await ReleaseAsync().ConfigureAwait(false); gate.Release(); }
+    }
+
+    public async Task<AudioData?> GetPreviewAsync(CancellationToken cancellationToken)
+    {
+        byte[] bytes;
+        WaveFormat snapshotFormat;
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            lock (bufferLock)
+            {
+                if (!started || buffer is null || format is null || buffer.Length < format.AverageBytesPerSecond / 2) return null;
+                bytes = buffer.ToArray();
+                snapshotFormat = format;
+            }
+        }
+        finally { gate.Release(); }
+        // Resample a private copy off the WASAPI callback and UI threads.
+        return await Task.Run(() => WavConverter.ConvertForSpeech(bytes, snapshotFormat), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task CancelAsync()

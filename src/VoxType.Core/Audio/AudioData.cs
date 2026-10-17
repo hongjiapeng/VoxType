@@ -1,5 +1,11 @@
 namespace VoxType.Core.Audio;
 
+// Optional capture capability: a snapshot never stops or drains the microphone.
+public interface IAudioPreviewSource
+{
+    Task<AudioData?> GetPreviewAsync(CancellationToken cancellationToken);
+}
+
 public sealed record AudioData(byte[] WavBytes, TimeSpan Duration, float Rms)
 {
     public const int SampleRate = 16000;

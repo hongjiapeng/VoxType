@@ -47,7 +47,9 @@ public partial class MainPageViewModel : ObservableObject
     public ModelManagerViewModel Models { get; init; } = null!;
     public Func<string, string, bool, Task>? RunLocalR2T2Async { get; init; }
     public bool CanCopy => LatestText.Length > 0;
-    public string UsageInstructions => "1. 聚焦外部输入框。\n2. 按住 " + settings.Current.Hotkey.DisplayName + " 说话，松开后识别并输入。\n3. 录音或识别中按 ESC 取消。";
+    public string UsageInstructions => "1. 聚焦外部输入框。\n2. 按住 " + settings.Current.Hotkey.DisplayName + " 说话，松开后识别并输入。"
+        + (settings.Current.ProviderId == "r2t2-server" && settings.Current.R2T2StreamOutput ? "\nR2T2 实时预览开启：说话时悬浮层会更新临时文字，松开后校正并输入。" : "")
+        + "\n3. 录音或识别中按 ESC 取消。";
     public event EventHandler<string>? ThemeChanged;
     public event EventHandler? CopyRequested;
 

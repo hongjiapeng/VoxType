@@ -208,3 +208,32 @@ dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restor
 | 正确复用被占用的有效运行时，恢复缺失／变化文件 | `RuntimePreparation_ReusesLockedValidFilesAndRepairsOnlyChangedFiles`，以及真实 Vulkan 服务运行中的重复准备检查 |
 | 冲突和无效压缩包不会造成部分覆盖 | `RuntimePreparation_LockedModifiedFileFailsBeforeChangingOtherFiles`、`RuntimePreparation_InvalidArchiveIsRejectedBeforeAnyWrite` |
 | 端口冲突提示明确，检查自身释放资源 | `PortProbe_ReportsOccupiedPortAndPid_AndReleasesItsOwnProbe`，以及真实服务重复启动检查 |
+
+### 2026-10-17 录音期间的 R2T2 实时预览
+
+用户澄清预期是在按住快捷键说话时就出现文字。此前实现的是松开后的 SSE 输出；实测现有 Q4/Vulkan 服务可返回 16 个文本 delta，但通过生产客户端识别公开 6.74 秒样例时，首个预览约 387ms、完成约 460ms，总共三个预览仅跨 73ms，难以感知。这个结果不能证明已经实现录音期间的识别。
+
+现已给 WASAPI 采集增加可选的非破坏快照接口，在后台复制当前缓冲、转换为既有 16kHz WAV，麦克风继续采集。R2T2 开关开启时，会话在 Listening 阶段串行提交最新快照；每次预览完成后间隔约 800ms 再取新快照，不积压过期任务。每次只发布完整的临时假设，避免每次重识别都从第一个 token 重放导致文字缩短和闪烁。观察到不完整音频会产生临时结尾 `|`，仅在临时预览中去掉该标记，最终识别清理规则保持独立。
+
+此方案使用现有 Q4/Vulkan 与 llama-server，反复识别当前录音前缀，实现录音期间出字；**尚未实现官方原生分块算法、缓存或 160ms 延迟**。临时文字可能改写，长录音会增加重复推理和传输成本。松开后取消并等待预览任务退出，再以完整录音做最终识别；临时结果不输入目标窗口、不写入最近识别。Esc 后的迟到预览被丢弃，预览暂时失败不终止录音。Whisper、OpenAI Compatible 与关闭开关时继续只在松开后识别。
+
+设置开关更名为“实时识别预览”，沿用原 `R2T2StreamOutput` 持久化值。悬浮层在 Listening 阶段同时保留波形与预览文字，完成后继续显示最终文字，取消／失败或下一次会话清除。Debug 诊断也包含当前开关状态。
+
+验证：
+
+```powershell
+dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restore --nologo --logger 'trx;LogFileName=r2t2-live-preview.trx'
+& 'C:/Users/OMEN/.codex/skills/winui-dev-workflow/BuildAndRun.ps1' 'src/VoxType.App/VoxType.App.csproj' -SkipRun /p:Configuration=Debug /p:RuntimeIdentifier=win-x64 /t:Rebuild
+winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --no-build --no-restore -p Platform=x64 --detach --args '--settings'
+```
+
+完整回归 **Passed: 371, Failed: 0, Skipped: 0**，TRX 已解析并核对关键测试名称。Debug/x64 非增量构建成功，无编译或 WinUI analyzer 诊断。旧 VoxType 通过自身 Debug 退出入口优雅关闭，新构建已启动；运行态诊断确认 `ProviderId=r2t2-server`、`R2T2StreamOutput=true`。原 Q4/Vulkan 服务继续健康，用户设置和模型保留。
+
+真实模型时序检查使用官方公开样例，在被 Git 忽略的 `artifacts/r2t2-streaming/probe` 中按真实时间生成递增 WAV 快照，经生产 `DictationCoordinator`、Provider 和当前服务识别，输入服务使用记录结果的替身，不向任何外部窗口输入。最终一次运行在约 3870ms、4861ms、5839ms 出现三次非空预览，均在 6749ms 模拟松开之前；松开后得到完整中文结果并仅模拟交付一次。该记录是模拟采集加真实 Q4 推理，不冒充真实麦克风／原生 UI 像素验收，也不据此承诺固定首字延迟。新版应用已就绪，可由用户按住快捷键完成真实麦克风体验。
+
+| Requirement | Evidence |
+|---|---|
+| 松开之前已经有文字且麦克风仍活动 | `LivePreview_ShowsTextWhileMicrophoneIsStillListening_ThenFinalCorrectsIt`；上述真实 Q4 时序检查 |
+| 松开时取消预览后再最终识别，取消丢弃迟到结果 | `LivePreview_StopCancelsInFlightPreviewBeforeFinalRecognition`、`LivePreview_CancelDiscardsLateSnapshotAndKeepsLeaseUntilItReturns` |
+| 预览错误不打断录音，关闭开关和其他 Provider 不发送快照 | `LivePreview_TransientFailureDoesNotStopMicrophoneOrPreventFinalResult`、`LivePreview_DisabledOrOtherProviderDoesNotRequestSnapshots` |
+| 悬浮层在聆听时保留波形和文字，最终文字不闪失 | `LivePreview_KeepsListeningWaveformAndText_AndRetainsResultThroughCompletion` |

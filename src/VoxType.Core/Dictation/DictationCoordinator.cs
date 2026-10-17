@@ -85,7 +85,7 @@ public sealed class DictationCoordinator : IAsyncDisposable
         lock (sync)
         {
             if (!ReferenceEquals(active, session)) return;
-            if (partialText is not null && session.State != SessionState.Processing) return;
+            if (partialText is not null && (session.State != state || state is not (SessionState.Listening or SessionState.Processing))) return;
             if (session.Cancellation.IsCancellationRequested && state is not (SessionState.Cancelling or SessionState.Failed or SessionState.Completed)) return;
             session.State = state;
             revision = ++session.Revision;
@@ -97,6 +97,8 @@ public sealed class DictationCoordinator : IAsyncDisposable
         var token = session.Cancellation.Token;
         IProviderLease? lease = null;
         ITimer? limit = null;
+        using var previewCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        Task previewTask = Task.CompletedTask;
         try
         {
             if (!session.Focus.IsValid) throw new AudioCaptureException("请先聚焦外部输入框，再使用快捷键开始。");
@@ -106,12 +108,19 @@ public sealed class DictationCoordinator : IAsyncDisposable
             await audio.StartAsync(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             limit = clock.CreateTimer(_ => session.End.TrySetResult(EndReason.Limit), null, TimeSpan.FromSeconds(60), Timeout.InfiniteTimeSpan);
-            if (!session.End.Task.IsCompleted) Update(session, SessionState.Listening, "");
+            if (!session.End.Task.IsCompleted)
+            {
+                Update(session, SessionState.Listening, "");
+                if (session.Settings.ProviderId == "r2t2-server" && session.Settings.R2T2StreamOutput && audio is IAudioPreviewSource source && lease is not null)
+                    previewTask = PreviewWhileListeningAsync(session, source, lease.Provider, previewCancellation.Token);
+            }
             var reason = await session.End.Task.ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (reason == EndReason.Cancel) throw new OperationCanceledException(token);
             Update(session, SessionState.Stopping, reason == EndReason.Limit ? "已达到 60 秒上限" : "正在结束录音");
+            previewCancellation.Cancel();
             var recording = await audio.StopAsync(token).ConfigureAwait(false);
+            await previewTask.ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (recording.Duration < TimeSpan.FromMilliseconds(250)) throw new AudioCaptureException("录音太短，请按住快捷键多说一会儿。");
             if (!recording.HasSignal) throw new AudioCaptureException("没有检测到足够音量，请检查麦克风并重试。");
@@ -140,6 +149,8 @@ public sealed class DictationCoordinator : IAsyncDisposable
         finally
         {
             limit?.Dispose();
+            previewCancellation.Cancel();
+            await previewTask.ConfigureAwait(false);
             try { await audio.CancelAsync().ConfigureAwait(false); }
             catch { /* release failure must not prevent remaining ownership cleanup */ }
             try { if (lease is not null) await lease.DisposeAsync().ConfigureAwait(false); }
@@ -150,6 +161,38 @@ public sealed class DictationCoordinator : IAsyncDisposable
                 SessionFinished?.Invoke(this, EventArgs.Empty);
             }
         }
+    }
+
+    private async Task PreviewWhileListeningAsync(Session session, IAudioPreviewSource source, ITranscriptionProvider provider, CancellationToken token)
+    {
+        try
+        {
+            while (true)
+            {
+                // One in-flight snapshot at a time. Slow devices coalesce to the newest audio.
+                await Task.Delay(TimeSpan.FromMilliseconds(800), clock, token).ConfigureAwait(false);
+                var snapshot = await source.GetPreviewAsync(token).ConfigureAwait(false);
+                if (snapshot is null || !snapshot.HasSignal) continue;
+                try
+                {
+                    // Publish one complete hypothesis per snapshot. Replaying token streams
+                    // from the beginning would repeatedly shrink the visible transcript.
+                    var result = await provider.TranscribeAsync(snapshot, new(session.Settings.Language), token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    // R2T2 may mark an unfinished audio prefix with a trailing pipe.
+                    // It belongs only to the provisional hypothesis, never to final cleanup.
+                    string preview = result.Text.TrimEnd('|', ' ', '\r', '\n');
+                    if (!string.IsNullOrWhiteSpace(preview)) Update(session, SessionState.Listening, "", preview);
+                }
+                catch (TranscriptionException)
+                {
+                    // An unfinished word or a transient preview failure does not end recording.
+                    // The final full recording still uses the normal visible error path.
+                }
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch { /* Preview is best effort; microphone and final recognition retain ownership. */ }
     }
     public async ValueTask DisposeAsync()
     {

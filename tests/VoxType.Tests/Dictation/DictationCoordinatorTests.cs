@@ -243,6 +243,101 @@ public sealed class DictationCoordinatorTests
         Assert.IsEmpty(h.Texts);
     }
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(5));
+
+    [TestMethod]
+    public async Task LivePreview_ShowsTextWhileMicrophoneIsStillListening_ThenFinalCorrectsIt()
+    {
+        await using var h = new Harness();
+        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        var preview = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Coordinator.Updated += (_, update) => { if (update.State == SessionState.Listening && update.PartialText is not null) preview.TrySetResult(update.PartialText); };
+        h.Provider.Send = (_, options, _) => Task.FromResult(new TranscriptionResult(options.PartialText is null ? "说话中的临时文字|" : "最终校正的完整句子。", "r2t2-server"));
+        h.Coordinator.Start();
+        Assert.AreEqual("说话中的临时文字", await preview.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(SessionState.Listening, h.Coordinator.State);
+        Assert.IsTrue(h.Audio.Active);
+        Assert.AreEqual(0, h.Audio.StopCount);
+        Assert.AreEqual(0, h.Injection.Calls);
+        Assert.IsEmpty(h.Texts);
+        h.Coordinator.Stop(); await Wait(h.Finished.Task);
+        Assert.AreEqual(1, h.Audio.StopCount);
+        Assert.AreEqual(1, h.Injection.Calls);
+        Assert.AreEqual("最终校正的完整句子。", h.Texts.Single());
+    }
+
+    [TestMethod]
+    public async Task LivePreview_StopCancelsInFlightPreviewBeforeFinalRecognition()
+    {
+        await using var h = new Harness();
+        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        var cancelled = Signal();
+        h.Provider.Send = async (_, options, token) =>
+        {
+            if (options.PartialText is null)
+            {
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
+                catch (OperationCanceledException) { cancelled.TrySetResult(true); throw; }
+            }
+            Assert.IsTrue(cancelled.Task.IsCompleted, "Final inference must wait for preview ownership to be released.");
+            return new("最终结果", "r2t2-server");
+        };
+        h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
+        h.Coordinator.Stop(); await Wait(h.Finished.Task);
+        Assert.IsTrue(cancelled.Task.IsCompletedSuccessfully);
+        Assert.AreEqual(2, h.Provider.Calls);
+        Assert.AreEqual("最终结果", h.Texts.Single());
+    }
+
+    [TestMethod]
+    public async Task LivePreview_CancelDiscardsLateSnapshotAndKeepsLeaseUntilItReturns()
+    {
+        await using var h = new Harness(blockProvider: true);
+        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
+        h.Coordinator.Cancel();
+        Assert.AreEqual(0, h.Registry.LeasesDisposed);
+        Assert.IsFalse(h.Coordinator.Start());
+        h.Provider.Result.TrySetResult("取消后迟到的预览");
+        await Wait(h.Finished.Task);
+        Assert.IsFalse(h.Updates.Any(update => update.PartialText == "取消后迟到的预览"));
+        Assert.AreEqual(0, h.Injection.Calls);
+        Assert.AreEqual(1, h.Registry.LeasesDisposed);
+        Assert.IsEmpty(h.Texts);
+    }
+
+    [TestMethod]
+    public async Task LivePreview_TransientFailureDoesNotStopMicrophoneOrPreventFinalResult()
+    {
+        await using var h = new Harness();
+        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Provider.Send = (_, options, _) => options.PartialText is null
+            ? Task.FromException<TranscriptionResult>(new TranscriptionException("语音尚未完整", "empty"))
+            : Task.FromResult(new TranscriptionResult("完整结果", "r2t2-server"));
+        h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
+        Assert.AreEqual(SessionState.Listening, h.Coordinator.State);
+        Assert.IsTrue(h.Audio.Active);
+        h.Coordinator.Stop(); await Wait(h.Finished.Task);
+        Assert.AreEqual("完整结果", h.Texts.Single());
+        Assert.AreEqual(1, h.Injection.Calls);
+    }
+
+    [TestMethod]
+    [DataRow("r2t2-server", false)]
+    [DataRow("whisper-local", true)]
+    [DataRow("openai-compatible", true)]
+    public async Task LivePreview_DisabledOrOtherProviderDoesNotRequestSnapshots(string id, bool enabled)
+    {
+        await using var h = new Harness();
+        h.Settings.Publish(new() { ProviderId = id, R2T2StreamOutput = enabled });
+        h.Coordinator.Start(); await Wait(h.Listening.Task);
+        var quietInterval = Task.Delay(TimeSpan.FromMilliseconds(1000));
+        Assert.AreSame(quietInterval, await Task.WhenAny(quietInterval, h.Audio.PreviewRequested.Task));
+        h.Coordinator.Stop(); await Wait(h.Finished.Task);
+        Assert.AreEqual(0, h.Audio.PreviewCount);
+        Assert.AreEqual(1, h.Provider.Calls);
+        Assert.AreEqual(1, h.Injection.Calls);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         public SettingsSession Settings { get; } = new(new AppSettings());
@@ -267,7 +362,7 @@ public sealed class DictationCoordinatorTests
         public void ResetSignals() { Listening = Signal(); Finished = Signal(); }
         public async ValueTask DisposeAsync() { Audio.StartGate.TrySetResult(true); Provider.Result.TrySetResult("清理文本"); await Coordinator.DisposeAsync(); }
     }
-    private sealed class FakeAudio(bool delayStart) : IAudioCaptureService
+    private sealed class FakeAudio(bool delayStart) : IAudioCaptureService, IAudioPreviewSource
     {
         private EventHandler<float>? levelChanged;
         public int LevelSubscribers, FaultSubscribers;
@@ -276,6 +371,8 @@ public sealed class DictationCoordinatorTests
         public TaskCompletionSource<bool> Entered { get; } = Signal();
         public TaskCompletionSource<bool> StartGate { get; } = Signal();
         public int StartCount, StopCount;
+        public int PreviewCount;
+        public TaskCompletionSource<bool> PreviewRequested { get; } = Signal();
         public bool Active, Disposed;
         public AudioData Data { get; set; } = new([1], TimeSpan.FromSeconds(1), 0.5f);
         public async Task StartAsync(CancellationToken token) { StartCount++; Entered.TrySetResult(true); if (delayStart) await StartGate.Task; Active = true; }
@@ -283,6 +380,8 @@ public sealed class DictationCoordinatorTests
         public Task CancelAsync() { Active = false; return Task.CompletedTask; }
         public ValueTask DisposeAsync() { Disposed = true; Active = false; return ValueTask.CompletedTask; }
         public void EmitLevel(float level) => levelChanged?.Invoke(this, level);
+        public Task<AudioData?> GetPreviewAsync(CancellationToken token)
+        { PreviewCount++; PreviewRequested.TrySetResult(true); return Task.FromResult<AudioData?>(Data); }
     }
     private sealed class FakeFocus : IFocusContextService
     {
@@ -297,10 +396,11 @@ public sealed class DictationCoordinatorTests
         public string DisplayName => "测试 Provider";
         public int Calls;
         public List<TranscriptionOptions> Options { get; } = [];
+        public Func<AudioData, TranscriptionOptions, CancellationToken, Task<TranscriptionResult>>? Send { get; set; }
         public TaskCompletionSource<bool> Entered { get; } = Signal();
         public TaskCompletionSource<string> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async Task<TranscriptionResult> TranscribeAsync(AudioData audio, TranscriptionOptions options, CancellationToken token)
-        { Calls++; Options.Add(options); Entered.TrySetResult(true); return new(block ? await Result.Task : "测试文本", Id); }
+        { Calls++; Options.Add(options); Entered.TrySetResult(true); if (Send is not null) return await Send(audio, options, token); return new(block ? await Result.Task : "测试文本", Id); }
     }
     private sealed class FakeRegistry(FakeProvider provider) : ITranscriptionProviderRegistry
     {
