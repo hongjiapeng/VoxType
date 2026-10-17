@@ -18,6 +18,7 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
     <Compile Include="../../src/VoxType.App/ViewModels/ModelManagerViewModel.cs" Link="ViewModels/ModelManagerViewModel.cs" />
     <Compile Include="../../src/VoxType.App/ViewModels/MainPageViewModel.cs" Link="ViewModels/MainPageViewModel.cs" />
+    <Compile Include="../../src/VoxType.App/ViewModels/OverlayViewModel.cs" Link="ViewModels/OverlayViewModel.cs" />
   </ItemGroup>
 
   <ItemGroup>

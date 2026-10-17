@@ -2,7 +2,15 @@
 
 VoxType 的 `R2T2 本机／局域网` Provider 可以连接本仓库的独立 HTTP 服务。服务把 WAV 转成音频聊天请求，交给常驻的 [llama-server](https://github.com/ggml-org/llama.cpp)，使用 [网易有道 Confucius4-R2T2 GGUF](https://huggingface.co/netease-youdao/Confucius4-R2T2-GGUF)。按住快捷键录音、松开后整段识别，沿用 VoxType 的取消和文本输入流程。
 
-此接入使用离线整段推理；模型官方的实时分块算法和 WebSocket 协议尚未接入。无需 Python、云账号或付费 API。模型准备阶段需要联网，运行阶段只连接配置的设备和本机 llama-server，不会自动下载。
+此接入在录音结束后提交整段音频，支持将生成的文字通过 SSE 逐段返回；模型官方的实时音频分块算法和 WebSocket 协议尚未接入。无需 Python、云账号或付费 API。模型准备阶段需要联网，运行阶段只连接配置的设备和本机 llama-server，不会自动下载。
+
+## 体验流式输出
+
+升级后，先在旧服务窗口按 Ctrl+C，再重新运行 `pwsh -File scripts/start-r2t2.ps1 -Backend Vulkan`（CPU 使用 `-Backend Cpu`）。从托盘退出旧 VoxType 并运行新版，在“语音识别”选择 R2T2，开启“流式显示识别结果”并保存。服务地址、模型和推理设备沿用原配置。
+
+在外部输入框按住快捷键说话，松开后会先处理完整音频，再随模型解码逐步显示文字。悬浮层在预览时固定宽度，长文本显示末尾，完成后一次性输入目标窗口。预览期间按 Esc 会丢弃结果；中途断流、超时或输出截断也不会输入半段文字。只有成功结果才进入“最近一次识别”。
+
+关闭该开关并保存后，可用相近的录音比较等待感。流式输出改善的是解码期间的反馈，首段文字仍需等待音频编码和首个文本生成。旧版适配服务拒绝 `stream=true`，因此连接旧服务时需关闭开关，或升级并重启服务。现有 CPU/Vulkan GGUF 模型与运行时可以继续使用。
 
 ## Windows：准备和启动
 
@@ -90,7 +98,7 @@ Compose 固定官方 CPU 镜像 **b11515** 的内容摘要，适配器和 llama-
 | `language` | 可选：`auto`／空自动检测；`zh`、`en`、`ja`、`ko`、`de`、`fr`、`es`、`yue` 指定语言 |
 | `response_format` | `json`（默认）或 `text` |
 | `prompt` | 可选上下文／热词，最多 4000 字符；不改变服务系统配置 |
-| `stream` | 仅接受省略或 `false` |
+| `stream` | 省略／`false` 返回完整 JSON 或 text；`true` 使用 SSE，`response_format` 必须省略或为 `json` |
 
 ```powershell
 curl.exe http://127.0.0.1:8272/v1/audio/transcriptions `
@@ -98,6 +106,22 @@ curl.exe http://127.0.0.1:8272/v1/audio/transcriptions `
 ```
 
 成功响应 `{"text":"识别的文字"}`，会剥离模型 `language Chinese<asr_text>` 协议前缀。文件最多 2,000,000 字节，整个请求最多 2,065,536 字节，上游响应最多 1 MiB。单实例串行推理；排队与推理共享 115 秒期限，客户端请求总期限 120 秒。并发用户或更长录音应另行评估设备容量。
+
+增加 `-F stream=true`，并给 curl 增加 `-N` 关闭输出缓冲，可观察 `Content-Type: text/event-stream`：
+
+```text
+event: transcript.text.delta
+data: {"type":"transcript.text.delta","delta":"你好"}
+
+event: transcript.text.delta
+data: {"type":"transcript.text.delta","delta":"。"}
+
+event: transcript.text.done
+data: {"type":"transcript.text.done","text":"你好。"}
+
+```
+
+将 `delta` 顺序拼接得到预览；只有收到 `transcript.text.done` 且 `text` 与预览一致才算成功。服务会剥离跨 token 拆开的模型协议标记。首段文字之前的错误仍返回常规 HTTP 错误；流已经开始时，错误通过 `event: error` 和 `data: {"type":"error","error":{"code":"…","message":"…"}}` 返回，此时 HTTP 状态已为 200。连接结束但没有完成事件时必须丢弃未完成结果。客户端取消会中止上游读取，服务继续沿用单实例串行推理和超时限制。SSE 帧也计入 1 MiB 上游／客户端响应上限。
 
 错误统一为 `{"error":{"code":"…","message":"…"}}`。无效输入 400，文件超限 413，无识别文字 422，上游无效或截断输出 502，上游断开 503，超时 504。错误不会回传上游原始响应、录音、提示或密钥。客户端取消会取消排队和上游 HTTP 请求、丢弃结果；原生计算停止时间取决于 llama-server。
 

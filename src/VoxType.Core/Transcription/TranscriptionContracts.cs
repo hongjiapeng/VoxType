@@ -3,7 +3,8 @@ using VoxType.Core.Settings;
 
 namespace VoxType.Core.Transcription;
 
-public sealed record TranscriptionOptions(string Language);
+// PartialText receives the accumulated preview; only the returned result is final.
+public sealed record TranscriptionOptions(string Language, Action<string>? PartialText = null);
 public sealed record TranscriptionResult(string Text, string ProviderId, string? Language = null);
 
 public interface ITranscriptionProvider

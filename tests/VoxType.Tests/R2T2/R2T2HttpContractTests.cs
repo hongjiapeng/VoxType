@@ -51,7 +51,7 @@ public sealed class R2T2HttpContractTests
     [DataRow("model", "wrong-model", "model")]
     [DataRow("language", "invalid", "language")]
     [DataRow("response_format", "verbose_json", "response-format")]
-    [DataRow("stream", "true", "stream")]
+    [DataRow("stream", "invalid", "stream")]
     [DataRow("file", "wrong-name", "file")]
     public async Task InvalidFields_RejectedBeforeUpstream(string field, string value, string errorCode)
     {
@@ -114,6 +114,38 @@ public sealed class R2T2HttpContractTests
         Assert.AreEqual("你好，局域网。", result.Text); Assert.AreEqual("r2t2-server", result.ProviderId); Assert.AreEqual("zh", result.Language); Assert.AreEqual(1, host.InferenceCalls);
     }
 
+    [TestMethod]
+    public async Task StreamingHttp_PreviewArrivesBeforeUpstreamCompletes()
+    {
+        await using var host = await Host.StartAsync();
+        host.GateStreaming = true;
+        var preview = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new OpenAiCompatibleProvider(host.Client, new AppSettings { ProviderId = "r2t2-server", BaseUrl = host.Client.BaseAddress + "v1", Model = "r2t2-q4", ApiKey = "contract-key" });
+        var pending = provider.TranscribeAsync(new(WavValidatorTests.CreateWav(), TimeSpan.FromMilliseconds(250), .1f), new("zh", text => preview.TrySetResult(text)), default);
+        try
+        {
+            Assert.AreEqual("你好", await preview.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.IsFalse(pending.IsCompleted, "The preview must be visible while upstream decoding is still blocked.");
+        }
+        finally { host.ContinueStreaming.TrySetResult(); }
+        Assert.AreEqual("你好，局域网。", (await pending.WaitAsync(TimeSpan.FromSeconds(5))).Text);
+        using var payload = JsonDocument.Parse(host.LastPayload!);
+        Assert.IsTrue(payload.RootElement.GetProperty("stream").GetBoolean());
+    }
+
+    [TestMethod]
+    public async Task StreamingHttp_ErrorAfterPreviewDoesNotReturnFinalResult()
+    {
+        await using var host = await Host.StartAsync();
+        host.TruncateStream = true;
+        var previews = new List<string>();
+        var provider = new OpenAiCompatibleProvider(host.Client, new AppSettings { ProviderId = "r2t2-server", BaseUrl = host.Client.BaseAddress + "v1", Model = "r2t2-q4", ApiKey = "contract-key" });
+        var error = await Assert.ThrowsExactlyAsync<VoxType.Core.Transcription.TranscriptionException>(() => provider.TranscribeAsync(new(WavValidatorTests.CreateWav(), TimeSpan.FromMilliseconds(250), .1f), new("zh", previews.Add), default));
+        Assert.AreEqual("truncated", error.Code);
+        Assert.AreEqual("你好", previews[0]);
+        Assert.DoesNotContain("private-", error.ToString());
+    }
+
     private static MultipartFormDataContent Form(string? overrideField = null, string? value = null, byte[]? wav = null)
     {
         var form = new MultipartFormDataContent();
@@ -142,6 +174,9 @@ public sealed class R2T2HttpContractTests
         public int InferenceStatus { get; set; } = 200;
         public string? LastPayload { get; private set; }
         public string? LastAuthorization { get; private set; }
+        public bool GateStreaming { get; set; }
+        public bool TruncateStream { get; set; }
+        public TaskCompletionSource ContinueStreaming { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public HttpClient Client { get; private set; } = null!;
 
         public static async Task<Host> StartAsync()
@@ -153,11 +188,24 @@ public sealed class R2T2HttpContractTests
                 builder.Logging.ClearProviders(); builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
                 host.upstream = builder.Build();
                 host.upstream.MapGet("/health", () => Results.Json(new { status = "ok" }, statusCode: host.HealthStatus));
-                host.upstream.MapPost("/v1/chat/completions", async (HttpRequest request) =>
+                host.upstream.MapPost("/v1/chat/completions", async (HttpRequest request, HttpResponse response) =>
                 {
                     Interlocked.Increment(ref host.inferenceCalls);
                     host.LastAuthorization = request.Headers.Authorization.ToString();
                     using var reader = new StreamReader(request.Body); host.LastPayload = await reader.ReadToEndAsync();
+                    using var payload = JsonDocument.Parse(host.LastPayload);
+                    if (host.InferenceStatus == 200 && payload.RootElement.GetProperty("stream").GetBoolean())
+                    {
+                        response.ContentType = "text/event-stream";
+                        await response.WriteAsync("data: {\"choices\":[{\"delta\":{\"content\":\"language Chinese<asr_text>你好\"}}]}\n\n", request.HttpContext.RequestAborted);
+                        await response.Body.FlushAsync(request.HttpContext.RequestAborted);
+                        if (host.GateStreaming) await host.ContinueStreaming.Task.WaitAsync(request.HttpContext.RequestAborted);
+                        string tail = host.TruncateStream
+                            ? "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"length\"}]}\n\n"
+                            : "data: {\"choices\":[{\"delta\":{\"content\":\"，局域网。<|im_end|>\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+                        await response.WriteAsync(tail, request.HttpContext.RequestAborted);
+                        return (IResult)Results.Empty;
+                    }
                     return host.InferenceStatus == 200
                         ? Results.Json(new { choices = new[] { new { message = new { content = "language Chinese<asr_text>你好，局域网。<|im_end|>" }, finish_reason = "stop" } } })
                         : Results.Text("private-audio private-key", statusCode: host.InferenceStatus);

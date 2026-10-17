@@ -160,3 +160,31 @@ Release/x64 WinUI 应用构建成功，0 警告、0 错误；完整测试 326/32
 用户启动 Debug MSIX 时，应用默认指向包的 LocalCache，和上午已准备好的仓库 `r2t2-data` 不同。LocalCache 当时只有一个 51,075,758 字节的 `.partial` 文件；完整模型在仓库目录，大小分别为 1,107,404,736 和 641,773,984 字节。使用 `prepare-r2t2.ps1 -ModelsOnly -DataDirectory r2t2-data` 重新验证，两模型均通过官方大小、GGUF 与 SHA-256 校验。CPU 和 Vulkan 运行时也都已在该目录准备好。
 
 开发版现在会从应用目录向上查找仓库 `r2t2-data` 并复用；MSIX 安装版继续使用 LocalCache。Debug/x64 构建成功，0 警告、0 错误。现有运行实例仍可在数据目录输入框显式填入仓库路径继续使用，无需重新下载模型。
+
+### 2026-10-17 R2T2 流式输出预览
+
+原有本地推理设备和启动入口先保存为 `6034ae6`，流式功能在 `codex/r2t2-streaming-output` 分支实现。服务将完整 WAV 发送给本机 llama-server，启用其 Chat Completions SSE 输出，过滤可能跨 token 拆开的语言前缀和结束标记，再通过 `transcript.text.delta`／`transcript.text.done` 转发给客户端。麦克风仍在松开快捷键后提交完整录音。
+
+R2T2 设置新增默认开启的“流式显示识别结果”，可以关闭并保存来比较效果。客户端将增量文字作为累积预览传给会话；预览最多每 50ms 更新一次，最终结果强制刷新。悬浮层固定预览宽度，显示最近 64 个 UTF-16 代码单元附近的文字，避免切开代理对。目标输入框只接收验证完成后的完整结果；中途错误、取消和未收到完成事件均丢弃未完成结果。Whisper 和 OpenAI Compatible 继续使用原有 JSON 流程。
+
+验证命令：
+
+```powershell
+dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restore --filter 'FullyQualifiedName~Streaming|FullyQualifiedName~R2T2HttpContractTests' --nologo
+dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64 --no-restore --nologo --logger 'trx;LogFileName=r2t2-streaming-regression.trx'
+& 'C:/Users/OMEN/.codex/skills/winui-dev-workflow/BuildAndRun.ps1' 'src/VoxType.App/VoxType.App.csproj' -SkipRun /p:Configuration=Release /p:RuntimeIdentifier=win-x64 /t:Rebuild
+git diff --check
+```
+
+窄范围检查 **Passed: 40, Failed: 0, Skipped: 0**；之后补充悬浮层和开关检查，最终完整回归 **Passed: 354, Failed: 0, Skipped: 0**。TRX XML 已解析，确认 354 项全部执行且成功，并核对关键测试名称。Release/x64 非增量重建成功，无编译或 WinUI analyzer 诊断。构建脚本最初没有指定 RuntimeIdentifier，误选 win-x86 而出现 NETSDK1032；显式设置 win-x64 后完成重建，脚本临时 analyzer 文件已清理，构建带来的无关锁文件变化已恢复。
+
+| Requirement | Evidence |
+|---|---|
+| 识别完成前可看到增量文字 | `StreamingHttp_PreviewArrivesBeforeUpstreamCompletes` 通过真实 Kestrel 和独立适配器进程，阻塞上游的后半段响应，确认客户端先收到“你好”且最终任务仍未完成 |
+| 协议标记、中文 UTF-8 和 SSE 跨读取边界 | `LlamaStreaming_SplitProtocolAndUtf8ProducesCleanDeltas` 使用单字节、7 字节和 4096 字节读取，断言首段和最终拼接文字，语言／结束标记不会泄露到预览 |
+| 断流、截断、错误与响应大小上限 | `LlamaStreaming_UnfinishedOrInvalidOutputNeverSucceeds`、`LlamaStreaming_ResponseBudgetChecksExactBoundary`、`R2T2Streaming_FailedStreamCannotBecomeSuccessfulResult`、`StreamingHttp_ErrorAfterPreviewDoesNotReturnFinalResult` |
+| 超时和取消后释放推理资源 | `LlamaStreaming_CancellationOrTimeoutReleasesInferenceGate` 验证首段输出后取消或超时，下一次识别可以取得同一 gate |
+| 预览不提前输入、取消后迟到结果被丢弃 | `StreamingPreview_IsPublishedBeforeFinal_AndOnlyFinalIsInjected`、`StreamingPreview_AfterCancelIsIgnored_AndNothingIsInjected` |
+| 悬浮层可读、比较开关和旧协议兼容 | `StreamingPreview_LongTextShowsTailWithoutBreakingSurrogatePair`、`StreamingPreview_DisplaysRecognizedTextAndClearsItOnNextState`、`R2T2StreamingToggle_SavesExplicitChoice`、`StreamingSetting_DefaultsOnForOldFiles_AndPersistsDisabledChoice`、`StreamingDisabledOrOtherProviderKeepsJsonRequest` |
+
+本次未完成真实 Q4 流式延迟和原生 UI 体验验收。机器上已有 Vulkan llama-server 与旧适配器运行，计划以公开样例和临时适配器验证真实模型；自动审批拒绝了包含下载样例和启动临时适配器的命令，只返回 `blocked by policy`，未提供具体原因。没有据自动化上游替身的成功宣称真实模型首字延迟或加速效果。未停止已有进程、修改用户现有配置或安装新 MSIX。

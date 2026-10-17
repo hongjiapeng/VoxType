@@ -208,6 +208,40 @@ public sealed class DictationCoordinatorTests
     }
 
     private static TaskCompletionSource<bool> Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    [TestMethod]
+    public async Task StreamingPreview_IsPublishedBeforeFinal_AndOnlyFinalIsInjected()
+    {
+        await using var h = new Harness(blockProvider: true);
+        h.Coordinator.Start(); await Wait(h.Listening.Task); h.Coordinator.Stop();
+        await Wait(h.Provider.Entered.Task);
+        h.Provider.Options[0].PartialText!("识别中的半句话");
+        Assert.AreEqual("识别中的半句话", h.Updates.Last().PartialText);
+        Assert.AreEqual(SessionState.Processing, h.Updates.Last().State);
+        Assert.IsEmpty(h.Texts);
+        Assert.AreEqual(0, h.Injection.Calls);
+        h.Provider.Result.TrySetResult("完整的一句话。"); await Wait(h.Finished.Task);
+        Assert.AreEqual("完整的一句话。", h.Texts.Single());
+        Assert.AreEqual(1, h.Injection.Calls);
+        h.Provider.Options[0].PartialText!("完成后迟到的半句话");
+        Assert.AreEqual(SessionState.Completed, h.Updates.Last().State);
+    }
+
+    [TestMethod]
+    public async Task StreamingPreview_AfterCancelIsIgnored_AndNothingIsInjected()
+    {
+        await using var h = new Harness(blockProvider: true);
+        h.Coordinator.Start(); await Wait(h.Listening.Task); h.Coordinator.Stop();
+        await Wait(h.Provider.Entered.Task);
+        h.Provider.Options[0].PartialText!("先到的文字");
+        h.Coordinator.Cancel();
+        h.Provider.Options[0].PartialText!("取消后迟到的文字");
+        Assert.AreEqual(SessionState.Cancelling, h.Updates.Last().State);
+        Assert.IsNull(h.Updates.Last().PartialText);
+        h.Provider.Result.TrySetResult("迟到的最终结果"); await Wait(h.Finished.Task);
+        Assert.AreEqual(0, h.Injection.Calls);
+        Assert.IsEmpty(h.Texts);
+    }
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(5));
     private sealed class Harness : IAsyncDisposable
     {

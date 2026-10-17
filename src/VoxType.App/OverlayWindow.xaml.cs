@@ -113,7 +113,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     }
     private void ViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(ViewModel.Title) or nameof(ViewModel.Detail) or nameof(ViewModel.ShowStop)) || sizingQueued) return;
+        if (args.PropertyName is not (nameof(ViewModel.Title) or nameof(ViewModel.Detail) or nameof(ViewModel.ShowStop) or nameof(ViewModel.IsStreamingPreview)) || sizingQueued) return;
         // Coalesce a state update's property changes, including subsequent command feedback.
         sizingQueued = true;
         DispatcherQueue.TryEnqueue(() =>
@@ -142,6 +142,8 @@ public sealed partial class OverlayWindow : Window, IDisposable
         titleMeasure.Measure(unlimited);
         detailMeasure.Measure(unlimited);
         double nextWidth = Math.Clamp(Math.Ceiling(Math.Max(titleMeasure.DesiredSize.Width, detailMeasure.DesiredSize.Width) + chrome + 2), 260, 560);
+        // Keep a stable reading surface while tokens arrive, instead of resizing per token.
+        if (ViewModel.IsStreamingPreview) nextWidth = 560;
         // Decide width from natural text size, then measure wrapping at that final width.
         // Using the longest wrapped line as the width can cause an extra orphan line.
         detailMeasure.Measure(new Windows.Foundation.Size(nextWidth - chrome, double.PositiveInfinity));

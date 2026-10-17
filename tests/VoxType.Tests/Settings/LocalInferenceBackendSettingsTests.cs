@@ -7,6 +7,19 @@ namespace VoxType.Tests.Settings;
 public sealed class LocalInferenceBackendSettingsTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task R2T2StreamingToggle_SavesExplicitChoice(bool enabled)
+    {
+        var session = new SettingsSession(new() { R2T2StreamOutput = !enabled });
+        var model = new MainPageViewModel(session, settings => { session.Publish(settings); return Task.CompletedTask; });
+        Assert.AreEqual(!enabled, model.R2T2StreamOutput);
+        model.R2T2StreamOutput = enabled;
+        await model.SaveCommand.ExecuteAsync(null);
+        Assert.AreEqual(enabled, session.Current.R2T2StreamOutput);
+    }
+
+    [TestMethod]
     public async Task SaveCommand_PersistsWhisperVulkanSelectionAndExplainsRestart()
     {
         var session = new SettingsSession(new());

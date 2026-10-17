@@ -194,4 +194,15 @@ public sealed class JsonSettingsStoreTests
         public Task<byte[]?> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Bytes?.ToArray());
         public Task WriteAtomicAsync(byte[] bytes, CancellationToken cancellationToken) { if (FailWrite) throw new IOException("write failure"); Bytes = bytes.ToArray(); Writes++; return Task.CompletedTask; }
     }
+
+    [TestMethod]
+    public async Task StreamingSetting_DefaultsOnForOldFiles_AndPersistsDisabledChoice()
+    {
+        var file = new MemoryFile(); var store = new JsonSettingsStore(file, new DpapiSecretProtector());
+        await store.SaveAsync(Configured with { R2T2StreamOutput = false });
+        Assert.IsFalse((await store.LoadAsync()).Settings.R2T2StreamOutput);
+        var disk = JsonNode.Parse(file.Bytes!)!.AsObject(); disk.Remove("r2T2StreamOutput");
+        file.Bytes = Encoding.UTF8.GetBytes(disk.ToJsonString());
+        Assert.IsTrue((await store.LoadAsync()).Settings.R2T2StreamOutput);
+    }
 }

@@ -19,6 +19,7 @@ public partial class MainPageViewModel : ObservableObject
     [ObservableProperty] public partial string LocalInferenceBackend { get; set; }
     [ObservableProperty] public partial string R2T2InferenceBackend { get; set; }
     [ObservableProperty] public partial string R2T2DataDirectory { get; set; }
+    [ObservableProperty] public partial bool R2T2StreamOutput { get; set; }
     [ObservableProperty] public partial string BaseUrl { get; set; }
     [ObservableProperty] public partial string Model { get; set; }
     [ObservableProperty] public partial string ApiKey { get; set; }
@@ -61,6 +62,7 @@ public partial class MainPageViewModel : ObservableObject
         LocalInferenceBackend = current.LocalInferenceBackend;
         R2T2InferenceBackend = current.R2T2InferenceBackend;
         R2T2DataDirectory = current.R2T2DataDirectory;
+        R2T2StreamOutput = current.R2T2StreamOutput;
         BaseUrl = current.BaseUrl;
         Model = current.Model;
         ApiKey = current.ApiKey;
@@ -100,7 +102,7 @@ public partial class MainPageViewModel : ObservableObject
             if (HasBaseUrl) _ = ServerAddressPolicy.Validate(BaseUrl, SelectedProvider.Id);
             if (HasModel && string.IsNullOrWhiteSpace(Model)) throw new ArgumentException("请输入模型名称。");
             var updated = settings.Current with { ProviderId = SelectedProvider.Id, LocalModelPath = LocalModelPath.Trim(), LocalInferenceBackend = LocalInferenceBackend,
-                R2T2InferenceBackend = R2T2InferenceBackend, R2T2DataDirectory = R2T2DataDirectory.Trim(),
+                R2T2InferenceBackend = R2T2InferenceBackend, R2T2DataDirectory = R2T2DataDirectory.Trim(), R2T2StreamOutput = R2T2StreamOutput,
                 BaseUrl = BaseUrl.Trim(), Model = Model.Trim(), ApiKey = ApiKey.Trim(), Language = Language, Theme = Theme, Hotkey = hotkey };
             SettingsValidator.Validate(updated);
             bool backendChanged = settings.Current.LocalInferenceBackend != updated.LocalInferenceBackend;

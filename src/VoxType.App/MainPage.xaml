@@ -55,6 +55,12 @@
                             <TextBlock Text="{x:Bind ViewModel.ProviderDescription, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel></Border>
                         <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasR2T2), Mode=OneWay}">
+                            <StackPanel Spacing="8">
+                                <ToggleSwitch Header="流式显示识别结果" IsOn="{x:Bind ViewModel.R2T2StreamOutput, Mode=TwoWay}" AutomationProperties.AutomationId="R2T2StreamOutput" />
+                                <TextBlock Text="松开快捷键后，在悬浮层逐步显示识别文字，完成后输入。可关闭此选项比较效果；使用旧版 R2T2 服务时请关闭。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasR2T2), Mode=OneWay}">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="本机 R2T2 服务" Style="{StaticResource SubtitleTextBlockStyle}" />
                                 <ComboBox Header="本机推理设备" ItemsSource="{x:Bind ViewModel.LocalInferenceBackends, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.R2T2InferenceBackend, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="R2T2InferenceBackend" />

@@ -79,17 +79,18 @@ public sealed class DictationCoordinator : IAsyncDisposable
         lock (sync) { if (active?.State != SessionState.Listening || active.Cancellation.IsCancellationRequested) return; id = active.Id; }
         AudioLevelChanged?.Invoke(this, new(id, level));
     }
-    private void Update(Session session, SessionState state, string message)
+    private void Update(Session session, SessionState state, string message, string? partialText = null)
     {
         long revision;
         lock (sync)
         {
             if (!ReferenceEquals(active, session)) return;
+            if (partialText is not null && session.State != SessionState.Processing) return;
             if (session.Cancellation.IsCancellationRequested && state is not (SessionState.Cancelling or SessionState.Failed or SessionState.Completed)) return;
             session.State = state;
             revision = ++session.Revision;
         }
-        Updated?.Invoke(this, new(session.Id, state, message, session.Definition.DisplayName, session.Definition.IsLocal, session.Focus, session.FromTray, revision));
+        Updated?.Invoke(this, new(session.Id, state, message, session.Definition.DisplayName, session.Definition.IsLocal, session.Focus, session.FromTray, revision, partialText));
     }
     private async Task RunAsync(Session session)
     {
@@ -116,7 +117,8 @@ public sealed class DictationCoordinator : IAsyncDisposable
             if (!recording.HasSignal) throw new AudioCaptureException("没有检测到足够音量，请检查麦克风并重试。");
             Update(session, SessionState.Processing, session.Definition.DisplayName);
             if (providers is null) throw new TranscriptionException("录音已完成，识别服务尚未接入。", "unavailable");
-            var result = await lease!.Provider.TranscribeAsync(recording, new(session.Settings.Language), token).ConfigureAwait(false);
+            var result = await lease!.Provider.TranscribeAsync(recording,
+                new(session.Settings.Language, text => Update(session, SessionState.Processing, session.Definition.DisplayName, text)), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(result.Text)) throw new TranscriptionException("识别结果为空，请重试。", "empty");
             Transcribed?.Invoke(this, result.Text);

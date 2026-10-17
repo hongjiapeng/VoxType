@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text;
+using VoxType.Streaming;
 using VoxType.Core.Audio;
 using VoxType.Core.Settings;
 using VoxType.Core.Transcription;
@@ -37,15 +39,22 @@ public sealed class OpenAiCompatibleProvider(HttpClient client, AppSettings sett
         form.Add(file, "file", "recording.wav");
         form.Add(new StringContent(settings.Model.Trim()), "model");
         form.Add(new StringContent("json"), "response_format");
+        bool streaming = Id == "r2t2-server" && settings.R2T2StreamOutput && options.PartialText is not null;
+        if (streaming) form.Add(new StringContent("true"), "stream");
         if (!string.IsNullOrWhiteSpace(options.Language) && options.Language != "auto") form.Add(new StringContent(options.Language), "language");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = form };
         if (!string.IsNullOrWhiteSpace(settings.ApiKey)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey.Trim());
         try
         {
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) throw StatusError(response.StatusCode);
+            if (!response.IsSuccessStatusCode)
+                throw streaming && response.StatusCode == HttpStatusCode.BadRequest
+                    ? new TranscriptionException("R2T2 服务拒绝流式请求，请检查模型和语言；若使用旧版服务，请更新服务或关闭“流式显示识别结果”。", "request")
+                    : StatusError(response.StatusCode);
             if (response.Content.Headers.ContentLength > MaximumResponseBytes) throw Oversize();
             await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            if (streaming && response.Content.Headers.ContentType?.MediaType == "text/event-stream")
+                return new(await ReadStreamingAsync(stream, options.PartialText!, token).ConfigureAwait(false), Id, options.Language == "auto" ? null : options.Language);
             using var body = new MemoryStream();
             byte[] buffer = new byte[8192];
             while (true)
@@ -66,9 +75,57 @@ public sealed class OpenAiCompatibleProvider(HttpClient client, AppSettings sett
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (OperationCanceledException) { throw new TranscriptionException("在线识别超过 120 秒，请检查服务器后重试。", "timeout"); }
         catch (JsonException) { throw new TranscriptionException("服务器响应不是有效的 JSON，请检查兼容接口。", "format"); }
+        catch (SseLimitException) { throw Oversize(); }
+        catch (Exception ex) when (ex is InvalidOperationException or DecoderFallbackException or KeyNotFoundException)
+        { throw new TranscriptionException("服务器返回的流式结果格式无效，请检查服务版本。", "format"); }
         catch (HttpRequestException) { throw new TranscriptionException("无法连接识别服务器，请检查网络、地址和 TLS 证书。", "network"); }
         catch (IOException) { throw new TranscriptionException("读取服务器响应失败，请检查网络后重试。", "network"); }
     }
+
+    private async Task<string> ReadStreamingAsync(Stream stream, Action<string> onPartial, CancellationToken token)
+    {
+        var text = new StringBuilder();
+        var time = clock ?? TimeProvider.System;
+        long? lastPreview = null;
+        await foreach (string data in ServerSentEvents.ReadAsync(stream, MaximumResponseBytes, token).ConfigureAwait(false))
+        {
+            using var json = JsonDocument.Parse(data);
+            var root = json.RootElement;
+            string? type = root.GetProperty("type").GetString();
+            switch (type)
+            {
+                case "transcript.text.delta":
+                    string delta = root.GetProperty("delta").GetString() ?? throw InvalidStream();
+                    text.Append(delta);
+                    if (delta.Length > 0 && (lastPreview is null || time.GetElapsedTime(lastPreview.Value).TotalMilliseconds >= 50))
+                    {
+                        token.ThrowIfCancellationRequested();
+                        onPartial(text.ToString());
+                        lastPreview = time.GetTimestamp();
+                    }
+                    break;
+                case "transcript.text.done":
+                    string final = root.GetProperty("text").GetString() ?? throw InvalidStream();
+                    if (final.Length == 0 || final != final.Trim() || final != text.ToString()) throw InvalidStream();
+                    token.ThrowIfCancellationRequested();
+                    onPartial(final);
+                    return final;
+                case "error":
+                    string? code = root.GetProperty("error").GetProperty("code").GetString();
+                    throw code switch
+                    {
+                        "timeout" => new TranscriptionException("识别超时，请缩短录音或启用 GPU。", "timeout"),
+                        "truncated" => new TranscriptionException("识别输出达到限制，请缩短录音后重试。", "truncated"),
+                        "empty" => new TranscriptionException("未识别到语音，请重新录音。", "empty"),
+                        _ => new TranscriptionException("流式识别中断，未输入未完成的文字，请重试。", "server")
+                    };
+                default: throw InvalidStream();
+            }
+        }
+        throw new TranscriptionException("流式识别连接已中断，未收到完整结果，请重试。", "incomplete");
+    }
+
+    private static TranscriptionException InvalidStream() => new("服务器返回的流式结果不完整或格式无效。", "format");
     private static TranscriptionException Oversize() => new("服务器响应过大，已停止读取。", "response-size");
     private static TranscriptionException StatusError(HttpStatusCode status) => (int)status switch
     {

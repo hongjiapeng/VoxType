@@ -58,7 +58,7 @@ public sealed class JsonSettingsStore(ISettingsFile file, ISecretProtector prote
             catch { warning = "API Key 解密失败，已清空。请在语音识别设置中重新输入并保存。"; }
             var settings = new AppSettings { Version = dto.Version, ProviderId = dto.ProviderId, Language = dto.Language, Theme = dto.Theme,
                 Hotkey = dto.Hotkey, LocalModelPath = dto.LocalModelPath, LocalInferenceBackend = dto.LocalInferenceBackend,
-                R2T2InferenceBackend = dto.R2T2InferenceBackend, R2T2DataDirectory = dto.R2T2DataDirectory,
+                R2T2InferenceBackend = dto.R2T2InferenceBackend, R2T2DataDirectory = dto.R2T2DataDirectory, R2T2StreamOutput = dto.R2T2StreamOutput,
                 BaseUrl = dto.BaseUrl, Model = dto.Model, ApiKey = secret };
             SettingsValidator.Validate(settings);
             if (dto.Version == 1)
@@ -89,7 +89,7 @@ public sealed class JsonSettingsStore(ISettingsFile file, ISecretProtector prote
         {
             var dto = new DiskSettings { Version = 2, ProviderId = settings.ProviderId, Language = settings.Language, Theme = settings.Theme,
                 Hotkey = settings.Hotkey, LocalModelPath = settings.LocalModelPath, LocalInferenceBackend = settings.LocalInferenceBackend,
-                R2T2InferenceBackend = settings.R2T2InferenceBackend, R2T2DataDirectory = settings.R2T2DataDirectory,
+                R2T2InferenceBackend = settings.R2T2InferenceBackend, R2T2DataDirectory = settings.R2T2DataDirectory, R2T2StreamOutput = settings.R2T2StreamOutput,
                 BaseUrl = settings.BaseUrl, Model = settings.Model,
                 EncryptedApiKey = protector.Protect(settings.ApiKey) };
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(dto, Json);
@@ -109,6 +109,7 @@ public sealed class JsonSettingsStore(ISettingsFile file, ISecretProtector prote
         public string LocalInferenceBackend { get; init; } = "cpu";
         public string R2T2InferenceBackend { get; init; } = "cpu";
         public string R2T2DataDirectory { get; init; } = "";
+        public bool R2T2StreamOutput { get; init; } = true;
         public required string BaseUrl { get; init; }
         public required string Model { get; init; }
         public required string EncryptedApiKey { get; init; }

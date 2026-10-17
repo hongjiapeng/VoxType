@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
 using VoxType.R2T2.Server;
 
@@ -49,7 +50,7 @@ app.Use(async (context, next) =>
 app.MapGet("/health", async (LlamaTranscriber transcriber, CancellationToken token) =>
     await transcriber.IsReadyAsync(token) ? Results.Json(new { status = "ok" }) : Results.Json(new { status = "unavailable" }, statusCode: 503));
 app.MapGet("/v1/models", () => Results.Json(new { @object = "list", data = new[] { new { id = options.Model, @object = "model", owned_by = "local" } } }));
-app.MapPost("/v1/audio/transcriptions", async (HttpRequest request, LlamaTranscriber transcriber, CancellationToken token) =>
+app.MapPost("/v1/audio/transcriptions", async (HttpRequest request, HttpResponse response, LlamaTranscriber transcriber, CancellationToken token) =>
 {
     if (!request.HasFormContentType || request.ContentType?.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase) != true)
         throw new ServiceException(400, "request", "请使用 multipart/form-data 提交录音。");
@@ -58,7 +59,10 @@ app.MapPost("/v1/audio/transcriptions", async (HttpRequest request, LlamaTranscr
         throw new ServiceException(400, "model", "模型别名无效，请使用 /v1/models 中的模型。");
     var responseFormat = form["response_format"].ToString();
     if (responseFormat is not ("" or "json" or "text")) throw new ServiceException(400, "response-format", "仅支持 json 或 text 响应。");
-    if (form["stream"].ToString() is not ("" or "false")) throw new ServiceException(400, "stream", "当前接口为整段识别，不支持实时音频流。");
+    var streamValue = form["stream"].ToString();
+    if (streamValue is not ("" or "false" or "true")) throw new ServiceException(400, "stream", "stream 仅支持 true 或 false。");
+    bool streaming = streamValue == "true";
+    if (streaming && responseFormat == "text") throw new ServiceException(400, "response-format", "流式输出请使用 json 响应格式。");
     var language = form["language"].ToString();
     _ = LlamaTranscriber.ResolveLanguage(language);
     if (form.Files.Count != 1 || form.Files[0].Name != "file") throw new ServiceException(400, "file", "请提交一个名为 file 的 WAV 文件。");
@@ -68,10 +72,36 @@ app.MapPost("/v1/audio/transcriptions", async (HttpRequest request, LlamaTranscr
     await file.CopyToAsync(audio, token);
     var bytes = audio.ToArray();
     WavValidator.Validate(bytes);
+    if (streaming)
+    {
+        try
+        {
+            var finalText = await transcriber.TranscribeStreamingAsync(bytes, language, form["prompt"].ToString(),
+                (delta, cancellation) => WriteEvent(response, "transcript.text.delta", new { type = "transcript.text.delta", delta }, cancellation), token);
+            await WriteEvent(response, "transcript.text.done", new { type = "transcript.text.done", text = finalText }, token);
+        }
+        catch (ServiceException ex) when (response.HasStarted)
+        {
+            await WriteEvent(response, "error", new { type = "error", error = new { code = ex.Code, message = ex.Message } }, token);
+        }
+        return (IResult)Results.Empty;
+    }
     var text = await transcriber.TranscribeAsync(bytes, language, form["prompt"].ToString(), token);
     return responseFormat == "text" ? Results.Text(text, "text/plain", Encoding.UTF8) : Results.Json(new { text });
 });
 app.Run();
+
+static async Task WriteEvent(HttpResponse response, string name, object data, CancellationToken token)
+{
+    if (!response.HasStarted)
+    {
+        response.ContentType = "text/event-stream; charset=utf-8";
+        response.Headers.CacheControl = "no-cache";
+        response.Headers["X-Accel-Buffering"] = "no";
+    }
+    await response.WriteAsync($"event: {name}\ndata: {JsonSerializer.Serialize(data)}\n\n", token);
+    await response.Body.FlushAsync(token);
+}
 
 static Task Error(HttpContext context, int status, string code, string message)
 {
