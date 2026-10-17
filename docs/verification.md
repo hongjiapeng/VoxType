@@ -138,3 +138,25 @@ receipt 改为 Close 后采样最终序列。下一次原生检查还遇到刚�
 `winapp package src/VoxType.App/VoxType.App.csproj --arch x64 --no-sign` 已成功生成 `VoxType.App_1.0.0.0_x64.msix`。已读取包内清单及 native 文件列表，CPU 文件仅 win-x64 四个 DLL。包依赖 Windows App Runtime 2.5.1，并保留 Win11 最低版本、桌面权限及麦克风 capability。未签名、未安装生产证书，未做 Store 发布。
 
 OpenSpec 只勾选满足完整验证条件的任务；代码已经接入但缺少任务指定的真实系统验收时仍保留未完成状态。变更没有归档。
+
+### 2026-10-17 Whisper 本地 CPU/Vulkan 选择
+
+语音识别页新增本地 Whisper 的 `cpu` / `vulkan` 选择，旧设置文件缺少该字段时默认 CPU。模型缓存按模型路径和推理设备区分；Whisper.net 原生库一旦在进程内加载，切换设备需要重启应用。R2T2 的后端继续由服务端脚本选择。
+
+Release/x64 WinUI 应用构建成功，0 警告、0 错误。新增设置持久化、ViewModel 保存和模型缓存切换测试；完整套件在 Windows 上通过 323/323。清理后重新构建的应用目录包含 Windows x64 CPU/Vulkan 原生库，不包含 CPU 的 win-x86/win-arm64 或 Vulkan 的 linux-x64 文件。本机 `global.json` 要求 SDK 10.0.301，但可用版本为 10.0.203；验证命令从仓库外启动，以该已安装 SDK 构建，NuGet 缓存设在 D 盘。
+
+真实模型烟测使用官方 `ggml-base.bin`（147951465 字节，SHA-256 `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`）和本机参考项目 `Whisper/SampleClips/jfk.wav`。测试通过生产 `WhisperBackend` 在独立进程分别加载后端，NVIDIA GeForce RTX 4080 Laptop GPU 上 `LoadedLibrary=Vulkan`，CPU 进程为 `LoadedLibrary=Cpu`；两者都输出相同的 JFK 句子。一次冷启动 Vulkan 推理约 5.8 秒，随后再次独立进程测试时 Vulkan 两次约 0.82/0.73 秒，CPU 两次约 1.07/1.07 秒。这是短样本和单台设备的观察值，不代表所有设备、录音长度或每次首次运行的加速比；未测试无 Vulkan 显卡的机器和打包后的 UI 操作。
+
+### 2026-10-17 R2T2 本机 CPU/Vulkan 选择与启动
+
+语音识别页在 R2T2 Provider 下增加设备、数据目录、资源准备和本机服务启动入口。旧设置缺少新字段时默认 CPU；启动入口保存 `http://127.0.0.1:8272/v1` 与 `r2t2-q4`，并在可见的 PowerShell 7 窗口运行现有脚本。安装输出包含两个脚本、公共脚本、资源清单、聊天模板及适配服务源码。适配服务的构建中间文件写入数据目录，避免在安装目录写入。
+
+Release/x64 WinUI 应用构建成功，0 警告、0 错误；完整测试 326/326 通过。PowerShell 解析器检查准备、启动、公共脚本均无语法错误。`git diff --check` 通过。使用当前 `winapp package` 从 Release/x64 应用输出创建临时未签名 MSIX，读取包内 ZIP 清单确认两个启动脚本、公共脚本、资源清单、适配服务源码/项目文件、聊天模板和 Whisper CPU/Vulkan Windows x64 原生库均已打入；未安装该包。
+
+在本机 NVIDIA GeForce RTX 4080 Laptop GPU 上，资源准备脚本复用已校验的两个 Q4 模型并取得 llama.cpp b10950 Vulkan 运行时。改动后的启动脚本成功构建适配服务、加载模型并通过健康检查。官方测试 WAV 发送至 `POST /v1/audio/transcriptions` 后得到中文识别结果“之前有顾客自己带酒水，也没加收钱或者不让喝。”。Ctrl+C 停止后，8272/8273 端口及两个服务子进程均退出。此烟测证明服务端 Vulkan 路径在这台设备上可用；尚未实测打包后 UI 的按钮操作及无 GPU 设备上的 CPU 路径。
+
+### 2026-10-17 R2T2 开发版默认目录复用
+
+用户启动 Debug MSIX 时，应用默认指向包的 LocalCache，和上午已准备好的仓库 `r2t2-data` 不同。LocalCache 当时只有一个 51,075,758 字节的 `.partial` 文件；完整模型在仓库目录，大小分别为 1,107,404,736 和 641,773,984 字节。使用 `prepare-r2t2.ps1 -ModelsOnly -DataDirectory r2t2-data` 重新验证，两模型均通过官方大小、GGUF 与 SHA-256 校验。CPU 和 Vulkan 运行时也都已在该目录准备好。
+
+开发版现在会从应用目录向上查找仓库 `r2t2-data` 并复用；MSIX 安装版继续使用 LocalCache。Debug/x64 构建成功，0 警告、0 错误。现有运行实例仍可在数据目录输入框显式填入仓库路径继续使用，无需重新下载模型。

@@ -71,7 +71,11 @@
   <!-- Publish Properties -->
   <ItemGroup>
     <Content Include="../../docs/third-party-notices.md" Link="ThirdPartyNotices.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../docs/r2t2-server.md" Link="docs/r2t2-server.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../docs/licenses/*" Link="licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/prepare-r2t2.ps1;../../scripts/start-r2t2.ps1;../../scripts/r2t2-common.ps1;../../scripts/r2t2-assets.json" Link="scripts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../services/R2T2.Server/*.cs;../../services/R2T2.Server/*.csproj;../../services/R2T2.Server/appsettings.json" Link="services/R2T2.Server/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../services/r2t2-chat-template.jinja" Link="services/r2t2-chat-template.jinja" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <PropertyGroup>
     <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>

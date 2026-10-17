@@ -9,11 +9,12 @@
     <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
   </ItemGroup>
   <Target Name="FilterWhisperNativeArchitectures" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <None Remove="$(NuGetPackageRoot)whisper.net.runtime/1.9.1/build/win-arm64/**;$(NuGetPackageRoot)whisper.net.runtime/1.9.1/build/win-x86/**" />
+      <None Remove="$(NuGetPackageRoot)/whisper.net.runtime/1.9.1/build/win-arm64/**;$(NuGetPackageRoot)/whisper.net.runtime/1.9.1/build/win-x86/**;$(NuGetPackageRoot)/whisper.net.runtime.vulkan/1.9.1/build/linux-x64/**" />
     </ItemGroup>
   </Target>
 </Project>

@@ -32,7 +32,11 @@ foreach ($binding in @(@{ Address = $ip; Port = $Port }, @{ Address = [Net.IPAdd
     try { $probe.Start() } finally { $probe.Stop() }
 }
 $publishDirectory = Join-Path $dataRoot 'adapter'
-& dotnet publish (Join-Path $repoRoot 'services/R2T2.Server/R2T2.Server.csproj') -c Release -p:Platform=x64 --no-self-contained -o $publishDirectory --nologo
+$buildDirectory = Join-Path $dataRoot 'build'
+$intermediateDirectory = (Join-Path $buildDirectory 'obj') + [IO.Path]::DirectorySeparatorChar
+$outputDirectory = (Join-Path $buildDirectory 'bin') + [IO.Path]::DirectorySeparatorChar
+& dotnet publish (Join-Path $repoRoot 'services/R2T2.Server/R2T2.Server.csproj') -c Release -p:Platform=x64 --no-self-contained -o $publishDirectory `
+    "-p:BaseIntermediateOutputPath=$intermediateDirectory" "-p:MSBuildProjectExtensionsPath=$intermediateDirectory" "-p:BaseOutputPath=$outputDirectory" --nologo
 if ($LASTEXITCODE -ne 0) { throw '适配服务构建失败。' }
 $llamaArguments = @('-m', (Join-Path $dataRoot "models/$($manifest.models[0].name)"), '--mmproj', (Join-Path $dataRoot "models/$($manifest.models[1].name)"),
     '--host', '127.0.0.1', '--port', "$LlamaPort", '--alias', 'r2t2-q4', '-c', '8192', '-np', '1', '-t', "$Threads", '--temp', '0',

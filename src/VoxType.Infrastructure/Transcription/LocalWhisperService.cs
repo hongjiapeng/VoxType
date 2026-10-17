@@ -14,7 +14,9 @@ public sealed class LocalWhisperService : IAsyncDisposable
     private readonly ITimer idleTimer;
     private IWhisperModel? model;
     private string? loadedPath;
+    private string? loadedBackend;
     private string? desiredPath;
+    private string? desiredBackend;
     private bool hasSettings;
     private long lastUse;
     private int leases;
@@ -27,13 +29,13 @@ public sealed class LocalWhisperService : IAsyncDisposable
     public IProviderLease Acquire(AppSettings snapshot)
     {
         string path = WhisperModelPath.Resolve(snapshot.LocalModelPath);
-        lock (sync) { ObjectDisposedException.ThrowIf(disposed, this); if (!hasSettings) desiredPath = path; leases++; }
-        return new ProviderLease(new Provider(this, path), ReleaseAsync);
+        lock (sync) { ObjectDisposedException.ThrowIf(disposed, this); if (!hasSettings) { desiredPath = path; desiredBackend = snapshot.LocalInferenceBackend; } leases++; }
+        return new ProviderLease(new Provider(this, path, snapshot.LocalInferenceBackend), ReleaseAsync);
     }
     public void SettingsChanged(AppSettings settings)
     {
         string? selectedPath = settings.ProviderId == "whisper-local" ? WhisperModelPath.Resolve(settings.LocalModelPath) : null;
-        lock (sync) { if (disposed) return; hasSettings = true; desiredPath = selectedPath; if (!SamePath(selectedPath, loadedPath)) retire = true; }
+        lock (sync) { if (disposed) return; hasSettings = true; desiredPath = selectedPath; desiredBackend = settings.LocalInferenceBackend; if (!SamePath(selectedPath, loadedPath) || desiredBackend != loadedBackend) retire = true; }
         _ = UnloadIfUnusedAsync(idleOnly: false);
     }
     private async ValueTask ReleaseAsync()
@@ -41,17 +43,17 @@ public sealed class LocalWhisperService : IAsyncDisposable
         lock (sync) { leases--; if (leases < 0) throw new InvalidOperationException("Provider lease imbalance."); }
         await UnloadIfUnusedAsync(idleOnly: true).ConfigureAwait(false);
     }
-    private async Task<string> TranscribeAsync(string path, AudioData audio, TranscriptionOptions options, CancellationToken token)
+    private async Task<string> TranscribeAsync(string path, string inferenceBackend, AudioData audio, TranscriptionOptions options, CancellationToken token)
     {
         await nativeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             lock (sync) { ObjectDisposedException.ThrowIf(disposed, this); idleTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan); }
-            if (!SamePath(loadedPath, path) || model is null)
+            if (!SamePath(loadedPath, path) || loadedBackend != inferenceBackend || model is null)
             {
                 ClearModel();
-                model = await Task.Run(() => backend.Load(path), CancellationToken.None).ConfigureAwait(false);
-                lock (sync) { loadedPath = path; retire = !SamePath(desiredPath, path); }
+                model = await Task.Run(() => backend.Load(path, inferenceBackend), CancellationToken.None).ConfigureAwait(false);
+                lock (sync) { loadedPath = path; loadedBackend = inferenceBackend; retire = !SamePath(desiredPath, path) || desiredBackend != inferenceBackend; }
             }
             token.ThrowIfCancellationRequested();
             var result = await model.TranscribeAsync(audio.WavBytes, options.Language, token).ConfigureAwait(false);
@@ -100,7 +102,7 @@ public sealed class LocalWhisperService : IAsyncDisposable
     private void ClearModel()
     {
         IWhisperModel? old;
-        lock (sync) { old = model; model = null; loadedPath = null; }
+        lock (sync) { old = model; model = null; loadedPath = null; loadedBackend = null; }
         old?.Dispose();
     }
     public async Task DeleteModelAsync(string path)
@@ -126,10 +128,10 @@ public sealed class LocalWhisperService : IAsyncDisposable
         try { ClearModel(); }
         finally { nativeGate.Release(); }
     }
-    private sealed class Provider(LocalWhisperService service, string path) : ITranscriptionProvider
+    private sealed class Provider(LocalWhisperService service, string path, string inferenceBackend) : ITranscriptionProvider
     {
         public string Id => "whisper-local"; public string DisplayName => "Whisper 本地";
         public async Task<TranscriptionResult> TranscribeAsync(AudioData audio, TranscriptionOptions options, CancellationToken cancellationToken) =>
-            new(await service.TranscribeAsync(path, audio, options, cancellationToken).ConfigureAwait(false), Id, options.Language == "auto" ? null : options.Language);
+            new(await service.TranscribeAsync(path, inferenceBackend, audio, options, cancellationToken).ConfigureAwait(false), Id, options.Language == "auto" ? null : options.Language);
     }
 }

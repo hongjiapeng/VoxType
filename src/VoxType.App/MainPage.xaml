@@ -54,6 +54,19 @@
                             <ComboBox Header="识别服务" ItemsSource="{x:Bind ViewModel.Providers, Mode=OneWay}" DisplayMemberPath="DisplayName" SelectedItem="{x:Bind ViewModel.SelectedProvider, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ProviderSelector" />
                             <TextBlock Text="{x:Bind ViewModel.ProviderDescription, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasR2T2), Mode=OneWay}">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="本机 R2T2 服务" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <ComboBox Header="本机推理设备" ItemsSource="{x:Bind ViewModel.LocalInferenceBackends, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.R2T2InferenceBackend, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="R2T2InferenceBackend" />
+                                <TextBox Header="模型与运行时目录（留空使用默认目录）" Text="{x:Bind ViewModel.R2T2DataDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="可填写其他磁盘上的完整路径，模型约 1.63 GiB" AutomationProperties.AutomationId="R2T2DataDirectory" />
+                                <TextBlock Text="{x:Bind ViewModel.DefaultR2T2DataDirectory, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DefaultR2T2DataDirectory" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="准备本机资源" Command="{x:Bind ViewModel.PrepareLocalR2T2Command}" AutomationProperties.AutomationId="PrepareLocalR2T2" />
+                                    <Button Content="启动本机服务" Command="{x:Bind ViewModel.LaunchLocalR2T2Command}" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="LaunchLocalR2T2" />
+                                </StackPanel>
+                                <TextBlock Text="启动会保存本机地址和所选设备，并打开 PowerShell 7 服务窗口；就绪后在外部输入框开始录音。切换设备时先在该窗口按 Ctrl+C 停止旧服务，再启动新服务。局域网另一台电脑的设备需在那台电脑上选择。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
                         <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="{x:Bind Models.ModelName, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" />
@@ -86,6 +99,8 @@
                         </Border>
                         <Border Style="{StaticResource Card}"><StackPanel Spacing="16">
                             <TextBox Header="本地模型路径" Text="{x:Bind ViewModel.LocalModelPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="ggml-base.bin 的完整路径（留空使用默认目录）" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" AutomationProperties.AutomationId="ModelPath" />
+                            <ComboBox Header="Whisper 本地推理设备" ItemsSource="{x:Bind ViewModel.LocalInferenceBackends, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.LocalInferenceBackend, Mode=TwoWay}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="LocalInferenceBackend" />
+                            <TextBlock Text="cpu 适合所有已支持的设备；vulkan 需要可用的 Vulkan 显卡和驱动。切换已加载的设备需重启 VoxType；显存不足时请选择 cpu。" TextWrapping="Wrap" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock Text="也可手动指定已有的多语言 ggml-base.bin。留空使用以下默认模型文件：" TextWrapping="Wrap" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock Text="{x:Bind ViewModel.DefaultModelPath, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DefaultModelPath" />
                             <TextBox Header="Base URL" Text="{x:Bind ViewModel.BaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasBaseUrl), Mode=OneWay}" AutomationProperties.AutomationId="BaseUrl" />

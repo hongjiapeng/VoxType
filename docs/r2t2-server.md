@@ -30,7 +30,9 @@ pwsh -NoProfile -File scripts/prepare-r2t2.ps1 -Backend Vulkan
 pwsh -NoProfile -File scripts/start-r2t2.ps1 -Backend Vulkan
 ```
 
-`start-r2t2.ps1` 校验模型、构建适配服务，启动两个隐藏子进程并等待 `/health` 就绪。默认适配服务 `127.0.0.1:8272`，llama-server `127.0.0.1:8273`。终端保持运行；Ctrl+C 或任一子进程退出时，脚本清理自己启动的两个进程。启动前检查端口占用，不终止已有进程。可用 `-Threads 8`、`-Port 8272`、`-LlamaPort 8273`、`-StartupTimeoutSeconds 240` 调整。`-LlamaServerPath` 可指定自备兼容运行时，其来源与兼容性由部署者负责。
+Windows 版 VoxType 的“语音识别 → 本机 R2T2 服务”也可选择 `cpu`/`vulkan`，设置模型与运行时目录并点击“准备本机资源”“启动本机服务”。开发版留空目录时会向上查找仓库 `r2t2-data` 并复用已有资源；MSIX 安装版使用当前应用的本地缓存目录。模型合计约 1.63 GiB，可指定其他磁盘上的完整路径。按钮会打开可见的 PowerShell 7 窗口，需安装 PowerShell 7 和 .NET 10 SDK。准备资源只在用户点击后下载；启动会将本机地址设为 `http://127.0.0.1:8272/v1`、模型别名设为 `r2t2-q4`。更换后端前，在旧服务窗口按 Ctrl+C。R2T2 运行在另一台设备时，须在那台设备上配置后端，客户端的本机按钮不能切换远端 GPU。
+
+`start-r2t2.ps1` 校验模型、在数据目录内构建适配服务，启动两个隐藏子进程并等待 `/health` 就绪。默认适配服务 `127.0.0.1:8272`，llama-server `127.0.0.1:8273`。终端保持运行；Ctrl+C 或任一子进程退出时，脚本清理自己启动的两个进程。启动前检查端口占用，不终止已有进程。可用 `-Threads 8`、`-Port 8272`、`-LlamaPort 8273`、`-StartupTimeoutSeconds 240` 调整。`-LlamaServerPath` 可指定自备兼容运行时，其来源与兼容性由部署者负责。
 
 在 VoxType「语音识别」设置中选择 **R2T2 本机／局域网**，填写并保存：
 

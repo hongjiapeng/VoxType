@@ -77,6 +77,32 @@ public sealed class JsonSettingsStoreTests
         Assert.AreEqual(Configured, loaded.Settings); Assert.IsNull(loaded.Warning);
     }
     [TestMethod]
+    public async Task LocalInferenceBackend_RoundTripsAndOldSettingsDefaultToCpu()
+    {
+        var file = new MemoryFile(); var store = new JsonSettingsStore(file, new DpapiSecretProtector());
+        var gpu = Configured with { ProviderId = "whisper-local", LocalInferenceBackend = "vulkan" };
+        await store.SaveAsync(gpu);
+        Assert.AreEqual(gpu, (await store.LoadAsync()).Settings);
+        var old = JsonNode.Parse(file.Bytes!)!; old.AsObject().Remove("localInferenceBackend");
+        file.Bytes = Encoding.UTF8.GetBytes(old.ToJsonString());
+        Assert.AreEqual("cpu", (await store.LoadAsync()).Settings.LocalInferenceBackend);
+        Assert.ThrowsExactly<ArgumentException>(() => SettingsValidator.Validate(gpu with { LocalInferenceBackend = "cuda" }));
+    }
+    [TestMethod]
+    public async Task R2T2InferenceBackend_RoundTripsAndOldSettingsDefaultToCpu()
+    {
+        var file = new MemoryFile(); var store = new JsonSettingsStore(file, new DpapiSecretProtector());
+        var gpu = Configured with { ProviderId = "r2t2-server", BaseUrl = "http://127.0.0.1:8272/v1", R2T2InferenceBackend = "vulkan", R2T2DataDirectory = @"D:\R2T2 Models" };
+        await store.SaveAsync(gpu);
+        Assert.AreEqual(gpu, (await store.LoadAsync()).Settings);
+        var old = JsonNode.Parse(file.Bytes!)!; old.AsObject().Remove("r2T2InferenceBackend"); old.AsObject().Remove("r2T2DataDirectory");
+        file.Bytes = Encoding.UTF8.GetBytes(old.ToJsonString());
+        var loaded = (await store.LoadAsync()).Settings;
+        Assert.AreEqual("cpu", loaded.R2T2InferenceBackend);
+        Assert.AreEqual("", loaded.R2T2DataDirectory);
+        Assert.ThrowsExactly<ArgumentException>(() => SettingsValidator.Validate(gpu with { R2T2InferenceBackend = "cuda" }));
+    }
+    [TestMethod]
     [DataRow("corrupt")]
     [DataRow("version")]
     [DataRow("provider")]

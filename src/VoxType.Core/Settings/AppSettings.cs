@@ -10,6 +10,9 @@ public sealed record AppSettings
     public string Theme { get; init; } = "system";
     public HotkeyBinding Hotkey { get; init; } = HotkeyBinding.Default;
     public string LocalModelPath { get; init; } = "";
+    public string LocalInferenceBackend { get; init; } = "cpu";
+    public string R2T2InferenceBackend { get; init; } = "cpu";
+    public string R2T2DataDirectory { get; init; } = "";
     public string BaseUrl { get; init; } = "https://api.openai.com/v1";
     public string Model { get; init; } = "whisper-1";
     // This runtime model is not serialized to disk. The store uses an encrypted DTO.

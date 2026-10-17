@@ -38,7 +38,8 @@ public sealed class AppServices : IAsyncDisposable
             new LocalModelManager(modelClient, managedModelPath, localWhisper.DeleteModelAsync),
             path => SettingsViewModel!.UseInstalledModelAsync(path), Dispatch);
         SettingsViewModel = new(Settings, async updated => { await store.SaveAsync(updated); Settings.Publish(updated); })
-        { DefaultModelPath = managedModelPath, Models = models };
+        { DefaultModelPath = managedModelPath, DefaultR2T2DataDirectory = R2T2LocalLauncher.GetDefaultDataDirectory(AppContext.BaseDirectory), Models = models,
+            RunLocalR2T2Async = (backend, directory, prepare) => R2T2LocalLauncher.LaunchAsync(AppContext.BaseDirectory, backend, directory, prepare) };
         SettingsWindow = new(SettingsViewModel);
         Overlay = new();
         Tray = new(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));

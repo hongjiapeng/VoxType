@@ -59,6 +59,17 @@ public sealed class LocalWhisperServiceTests
         Assert.AreEqual(2, backend.Loads); Assert.AreEqual(WhisperModelPath.Resolve(next.LocalModelPath), backend.Paths[1]);
     }
     [TestMethod]
+    public async Task InferenceBackendChange_RetiresModelAndPassesNewSelectionToLoader()
+    {
+        var backend = new Backend(); await using var service = new LocalWhisperService(backend); service.SettingsChanged(Settings);
+        await using (var lease = service.Acquire(Settings)) await lease.Provider.TranscribeAsync(Audio, new("zh"), default);
+        var next = Settings with { LocalInferenceBackend = "vulkan" }; service.SettingsChanged(next);
+        Assert.AreEqual(1, backend.Models[0].Disposals);
+        await using (var lease = service.Acquire(next)) await lease.Provider.TranscribeAsync(Audio, new("zh"), default);
+        CollectionAssert.AreEqual(new[] { "cpu", "vulkan" }, backend.InferenceBackends);
+        Assert.AreEqual(2, backend.Loads);
+    }
+    [TestMethod]
     public async Task FiveMinuteIdle_UnloadsAndNextRequestReloads()
     {
         var clock = new FakeTimeProvider(); var backend = new Backend(); await using var service = new LocalWhisperService(backend, clock);
@@ -181,10 +192,10 @@ public sealed class LocalWhisperServiceTests
     }
     private sealed class Backend : IWhisperBackend
     {
-        public int Loads; public bool Block; public List<Model> Models { get; } = []; public List<string> Paths { get; } = [];
+        public int Loads; public bool Block; public List<Model> Models { get; } = []; public List<string> Paths { get; } = []; public List<string> InferenceBackends { get; } = [];
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public IWhisperModel Load(string path) { Loads++; Paths.Add(path); var model = new Model(this); Models.Add(model); return model; }
+        public IWhisperModel Load(string path, string inferenceBackend) { Loads++; Paths.Add(path); InferenceBackends.Add(inferenceBackend); var model = new Model(this); Models.Add(model); return model; }
     }
     private sealed class Model(Backend backend) : IWhisperModel
     {

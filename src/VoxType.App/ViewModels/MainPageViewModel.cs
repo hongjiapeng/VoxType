@@ -13,8 +13,12 @@ public partial class MainPageViewModel : ObservableObject
     public IReadOnlyList<ProviderDefinition> Providers => ProviderDefinition.All;
     public IReadOnlyList<string> Languages { get; } = ["auto", "zh", "en", "ja", "ko", "de", "fr", "es"];
     public IReadOnlyList<string> Themes { get; } = ["system", "light", "dark"];
+    public IReadOnlyList<string> LocalInferenceBackends { get; } = ["cpu", "vulkan"];
     [ObservableProperty] public partial ProviderDefinition SelectedProvider { get; set; }
     [ObservableProperty] public partial string LocalModelPath { get; set; }
+    [ObservableProperty] public partial string LocalInferenceBackend { get; set; }
+    [ObservableProperty] public partial string R2T2InferenceBackend { get; set; }
+    [ObservableProperty] public partial string R2T2DataDirectory { get; set; }
     [ObservableProperty] public partial string BaseUrl { get; set; }
     [ObservableProperty] public partial string Model { get; set; }
     [ObservableProperty] public partial string ApiKey { get; set; }
@@ -35,9 +39,12 @@ public partial class MainPageViewModel : ObservableObject
     public bool HasBaseUrl => SelectedProvider.Fields.Contains(ProviderField.BaseUrl);
     public bool HasApiKey => SelectedProvider.Fields.Contains(ProviderField.ApiKey);
     public bool HasModel => SelectedProvider.Fields.Contains(ProviderField.Model);
+    public bool HasR2T2 => SelectedProvider.Id == "r2t2-server";
     public string ProviderDescription => SelectedProvider.Description;
     public string DefaultModelPath { get; init; } = "";
+    public string DefaultR2T2DataDirectory { get; init; } = "";
     public ModelManagerViewModel Models { get; init; } = null!;
+    public Func<string, string, bool, Task>? RunLocalR2T2Async { get; init; }
     public bool CanCopy => LatestText.Length > 0;
     public string UsageInstructions => "1. 聚焦外部输入框。\n2. 按住 " + settings.Current.Hotkey.DisplayName + " 说话，松开后识别并输入。\n3. 录音或识别中按 ESC 取消。";
     public event EventHandler<string>? ThemeChanged;
@@ -51,6 +58,9 @@ public partial class MainPageViewModel : ObservableObject
         var current = settings.Current;
         SelectedProvider = Providers.First(p => p.Id == current.ProviderId);
         LocalModelPath = current.LocalModelPath;
+        LocalInferenceBackend = current.LocalInferenceBackend;
+        R2T2InferenceBackend = current.R2T2InferenceBackend;
+        R2T2DataDirectory = current.R2T2DataDirectory;
         BaseUrl = current.BaseUrl;
         Model = current.Model;
         ApiKey = current.ApiKey;
@@ -71,13 +81,16 @@ public partial class MainPageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasModelPath)); OnPropertyChanged(nameof(HasBaseUrl));
         OnPropertyChanged(nameof(HasApiKey)); OnPropertyChanged(nameof(HasModel));
+        OnPropertyChanged(nameof(HasR2T2));
         OnPropertyChanged(nameof(ProviderDescription));
     }
     partial void OnThemeChanged(string value) => ThemeChanged?.Invoke(this, value);
     partial void OnLatestTextChanged(string value) => OnPropertyChanged(nameof(CanCopy));
 
     [RelayCommand]
-    private async Task SaveAsync()
+    private async Task SaveAsync() => await SaveCurrentAsync();
+
+    private async Task<bool> SaveCurrentAsync()
     {
         try
         {
@@ -86,13 +99,50 @@ public partial class MainPageViewModel : ObservableObject
             hotkey.Validate();
             if (HasBaseUrl) _ = ServerAddressPolicy.Validate(BaseUrl, SelectedProvider.Id);
             if (HasModel && string.IsNullOrWhiteSpace(Model)) throw new ArgumentException("请输入模型名称。");
-            var updated = settings.Current with { ProviderId = SelectedProvider.Id, LocalModelPath = LocalModelPath.Trim(), BaseUrl = BaseUrl.Trim(), Model = Model.Trim(), ApiKey = ApiKey.Trim(), Language = Language, Theme = Theme, Hotkey = hotkey };
+            var updated = settings.Current with { ProviderId = SelectedProvider.Id, LocalModelPath = LocalModelPath.Trim(), LocalInferenceBackend = LocalInferenceBackend,
+                R2T2InferenceBackend = R2T2InferenceBackend, R2T2DataDirectory = R2T2DataDirectory.Trim(),
+                BaseUrl = BaseUrl.Trim(), Model = Model.Trim(), ApiKey = ApiKey.Trim(), Language = Language, Theme = Theme, Hotkey = hotkey };
             SettingsValidator.Validate(updated);
+            bool backendChanged = settings.Current.LocalInferenceBackend != updated.LocalInferenceBackend;
             await save(updated);
-            Message = "设置已保存，下一次语音输入使用新配置。";
+            Message = !backendChanged
+                ? "设置已保存，下一次语音输入使用新配置。"
+                : "设置已保存。若本次运行已经使用过 Whisper，请重启 VoxType 后切换推理设备。";
+            return true;
         }
         catch (ArgumentException ex) { Message = ex.Message; }
         catch { Message = "设置未能保存，仍使用上一次有效配置。"; }
+        return false;
+    }
+
+    [RelayCommand]
+    private async Task PrepareLocalR2T2Async()
+    {
+        await RunR2T2Async(prepare: true);
+    }
+
+    [RelayCommand]
+    private async Task LaunchLocalR2T2Async()
+    {
+        BaseUrl = "http://127.0.0.1:8272/v1";
+        Model = "r2t2-q4";
+        ApiKey = "";
+        if (!await SaveCurrentAsync()) return;
+        await RunR2T2Async(prepare: false);
+    }
+
+    private async Task RunR2T2Async(bool prepare)
+    {
+        try
+        {
+            if (RunLocalR2T2Async is null) throw new InvalidOperationException();
+            await RunLocalR2T2Async(R2T2InferenceBackend, R2T2DataDirectory.Trim(), prepare);
+            Message = prepare
+                ? "已打开 R2T2 资源准备窗口。完成下载和校验后，再启动本机服务。"
+                : "已打开 R2T2 本机服务窗口。等待模型加载完成；停止服务请在该窗口按 Ctrl+C。";
+        }
+        catch (ArgumentException ex) { Message = ex.Message; }
+        catch { Message = "无法启动 PowerShell 7。请安装 pwsh，并检查本机 R2T2 脚本与数据目录。"; }
     }
 
     [RelayCommand] private void Copy() => CopyRequested?.Invoke(this, EventArgs.Empty);

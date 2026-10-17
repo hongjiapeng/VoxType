@@ -10,6 +10,9 @@ public static class SettingsValidator
         if (!ProviderDefinition.All.Any(p => p.Id == settings.ProviderId)) throw new ArgumentException("识别服务无效。");
         if (settings.Theme is not ("system" or "light" or "dark")) throw new ArgumentException("主题无效。");
         if (settings.Language is not ("auto" or "zh" or "en" or "ja" or "ko" or "de" or "fr" or "es")) throw new ArgumentException("识别语言无效。");
+        if (settings.LocalInferenceBackend is not ("cpu" or "vulkan")) throw new ArgumentException("本地推理设备无效。");
+        if (settings.R2T2InferenceBackend is not ("cpu" or "vulkan")) throw new ArgumentException("R2T2 推理设备无效。");
+        if (settings.R2T2DataDirectory is null || settings.R2T2DataDirectory.Length > 4096) throw new ArgumentException("R2T2 数据目录无效。");
         if (settings.Hotkey is null) throw new ArgumentException("快捷键无效。");
         settings.Hotkey.Validate();
         if (settings.LocalModelPath is null || settings.BaseUrl is null || settings.Model is null || settings.ApiKey is null ||

@@ -4,4 +4,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RootNamespace>VoxType.R2T2.Server</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The Windows launcher places intermediate output outside the source tree. -->
+    <Compile Remove="obj/**/*.cs" />
+  </ItemGroup>
 </Project>
