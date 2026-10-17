@@ -43,7 +43,7 @@
 
 生产轮询改用 `ReconcileAsyncState`，保留被吞掉的主键和 ESC，依靠 Hook key-up 结束/清理配对；必要修饰键丢失仍中断。锁屏/休眠、取消和 60 秒上限保留。被吞主键的松开不能仅凭异步轮询可靠恢复；若整个 Hook 不再报告，修饰键丢失及会话通知、时长上限仍是兜底，不宣称完整解决 Windows 静默移除 Hook。
 
-默认改为 Ctrl + Win + F8，并在 MVVM 表单增加 Win 选项。Ctrl + Win + Space 未采用，因为它已有 [Windows 输入选项快捷键](https://support.microsoft.com/en-us/windows/keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec)用途。配置版本 1 中的 Alt + Space 只迁移一次；其他自定义组合及版本 2 明确选回的 Alt + Space 保留。迁移原子写入并保持原 DPAPI 密文、Provider、模型路径。
+原默认曾改为 Ctrl + Win + F8，因为 Ctrl + Win + Space 可能与 [Windows 输入选项快捷键](https://support.microsoft.com/en-us/windows/keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec)冲突。2026-10-17 按用户要求先改为 Ctrl + Win + Space，最终改为 Ctrl + Shift + Space。配置版本 1 中的 Alt + Space 只迁移一次；其他自定义组合及版本 2 明确选回的 Alt + Space 保留。迁移原子写入并保持原 DPAPI 密文、Provider、模型路径。
 
 `HotkeyMatcherTests` 和 `JsonSettingsStoreTests` 窄测试共 42 项通过，全套 169 项通过。新增四个快捷键测试方法（左右修饰参数展开为五项）和四个设置迁移测试方法。Debug 构建 0 警告、0 错误；Release MSIX 已重新生成。普通开发实例 PID 8600 已启动；进程内诊断确认版本 2、真实模型可见、空闲且浮层隐藏。用户已有 Ctrl + Shift + Space 作为自定义组合，实际保存并在设置 UIA 显示 Ctrl/Shift on、Alt/Win off、主键 Space，新默认提示及可用 Win 选项已核对。当前真实人的按键、说话、记事本交付结果仍待用户复测。
 

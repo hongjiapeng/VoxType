@@ -12,23 +12,23 @@ public sealed class HotkeyMatcherTests
     private static KeyDecision Up(HotkeyMatcher matcher, int key, bool cancel = false) => matcher.Process(new(key, false), cancel);
 
     [TestMethod]
-    [DataRow(0xa2, 0x5b)]
-    [DataRow(0xa3, 0x5c)]
-    public void Default_CtrlWinF8_StartsOnceAndReleasesOnEitherModifier(int control, int windows)
+    [DataRow(0xa2, 0xa0)]
+    [DataRow(0xa3, 0xa1)]
+    public void Default_CtrlShiftSpace_StartsOnceAndReleasesOnEitherModifier(int control, int shift)
     {
-        Assert.AreEqual(new HotkeyBinding(KeyModifiers.Control | KeyModifiers.Windows, 0x77), HotkeyBinding.Default);
-        Assert.AreEqual("Ctrl + Win + F8", HotkeyBinding.Default.DisplayName);
-        foreach (int first in new[] { control, windows, 0x77 })
+        Assert.AreEqual(new HotkeyBinding(KeyModifiers.Control | KeyModifiers.Shift, Space), HotkeyBinding.Default);
+        Assert.AreEqual("Ctrl + Shift + Space", HotkeyBinding.Default.DisplayName);
+        foreach (int first in new[] { control, shift, Space })
         {
             var matcher = new HotkeyMatcher(HotkeyBinding.Default);
-            Down(matcher, control); Down(matcher, windows);
-            Assert.AreEqual(new KeyDecision(true, HotkeyAction.Pressed), Down(matcher, 0x77));
-            Assert.AreEqual(new KeyDecision(true), Down(matcher, 0x77));
+            Down(matcher, control); Down(matcher, shift);
+            Assert.AreEqual(new KeyDecision(true, HotkeyAction.Pressed), Down(matcher, Space));
+            Assert.AreEqual(new KeyDecision(true), Down(matcher, Space));
             Assert.AreEqual(HotkeyAction.Released, Up(matcher, first).Action);
-            foreach (int remaining in new[] { control, windows, 0x77 }.Where(k => k != first)) Assert.IsNull(Up(matcher, remaining).Action);
+            foreach (int remaining in new[] { control, shift, Space }.Where(k => k != first)) Assert.IsNull(Up(matcher, remaining).Action);
             Assert.IsEmpty(matcher.DownKeys);
-            Down(matcher, control); Down(matcher, windows);
-            Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, 0x77).Action);
+            Down(matcher, control); Down(matcher, shift);
+            Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, Space).Action);
         }
     }
 
@@ -36,34 +36,34 @@ public sealed class HotkeyMatcherTests
     public void SwallowedMainAbsentFromAsyncState_DoesNotCancelHold_AndKeyUpStillEnds()
     {
         var matcher = new HotkeyMatcher(HotkeyBinding.Default);
-        Down(matcher, 0xa2); Down(matcher, 0x5b); Down(matcher, 0x77);
+        Down(matcher, 0xa2); Down(matcher, 0xa0); Down(matcher, Space);
         for (int tick = 0; tick < 30; tick++)
         {
-            Assert.IsNull(matcher.ReconcileAsyncState(new HashSet<int> { 0xa2, 0x5b }));
-            Assert.IsTrue(matcher.IsActive, "A swallowed F8 is absent from Windows async state even while held.");
-            Assert.AreEqual(new KeyDecision(true), Down(matcher, 0x77));
+            Assert.IsNull(matcher.ReconcileAsyncState(new HashSet<int> { 0xa2, 0xa0 }));
+            Assert.IsTrue(matcher.IsActive, "A swallowed Space is absent from Windows async state even while held.");
+            Assert.AreEqual(new KeyDecision(true), Down(matcher, Space));
         }
-        Assert.AreEqual(new KeyDecision(true, HotkeyAction.Released), Up(matcher, 0x77));
+        Assert.AreEqual(new KeyDecision(true, HotkeyAction.Released), Up(matcher, Space));
         Assert.IsFalse(matcher.IsActive);
-        Up(matcher, 0xa2); Up(matcher, 0x5b);
-        Down(matcher, 0xa2); Down(matcher, 0x5b);
-        Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, 0x77).Action);
+        Up(matcher, 0xa2); Up(matcher, 0xa0);
+        Down(matcher, 0xa2); Down(matcher, 0xa0);
+        Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, Space).Action);
     }
 
     [TestMethod]
     public void AsyncStateLosesRequiredModifier_CancelsOnce_AndPreservesMainPairUntilUp()
     {
         var matcher = new HotkeyMatcher(HotkeyBinding.Default);
-        Down(matcher, 0xa2); Down(matcher, 0x5b); Down(matcher, 0x77);
-        Assert.AreEqual(HotkeyAction.Interrupted, matcher.ReconcileAsyncState(new HashSet<int> { 0x5b }));
+        Down(matcher, 0xa2); Down(matcher, 0xa0); Down(matcher, Space);
+        Assert.AreEqual(HotkeyAction.Interrupted, matcher.ReconcileAsyncState(new HashSet<int> { 0xa0 }));
         Assert.IsFalse(matcher.IsActive);
         Assert.IsNull(matcher.ReconcileAsyncState(new HashSet<int>()));
-        Down(matcher, 0xa2); Down(matcher, 0x5b);
-        Assert.AreEqual(new KeyDecision(true), Down(matcher, 0x77), "Modifier recovery must not restart a held main key.");
-        Assert.AreEqual(new KeyDecision(true), Up(matcher, 0x77));
-        Up(matcher, 0xa2); Up(matcher, 0x5b);
-        Down(matcher, 0xa2); Down(matcher, 0x5b);
-        Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, 0x77).Action);
+        Down(matcher, 0xa2); Down(matcher, 0xa0);
+        Assert.AreEqual(new KeyDecision(true), Down(matcher, Space), "Modifier recovery must not restart a held main key.");
+        Assert.AreEqual(new KeyDecision(true), Up(matcher, Space));
+        Up(matcher, 0xa2); Up(matcher, 0xa0);
+        Down(matcher, 0xa2); Down(matcher, 0xa0);
+        Assert.AreEqual(HotkeyAction.Pressed, Down(matcher, Space).Action);
     }
 
     [TestMethod]

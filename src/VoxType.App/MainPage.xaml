@@ -108,7 +108,7 @@
                             </StackPanel>
                             <TextBox Header="主键" Text="{x:Bind ViewModel.Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="HotkeyKey" />
                             <TextBlock Text="Space、A–Z、0–9 或 F1–F11。先按修饰键，再按主键。ESC 始终用于取消。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="默认 Ctrl + Win + F8。可更换为适合你的组合；避免 Windows 系统和常用编辑器已使用的快捷键。" TextWrapping="Wrap" />
+                            <TextBlock Text="默认 Ctrl + Shift + Space。可更换为适合你的组合；避免 Windows 系统和常用编辑器已使用的快捷键。" TextWrapping="Wrap" />
                         </StackPanel></Border>
                     </StackPanel>
                 </Grid>

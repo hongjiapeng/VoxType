@@ -5,7 +5,7 @@ public enum KeyModifiers { None = 0, Alt = 1, Control = 2, Shift = 4, Windows = 
 
 public sealed record HotkeyBinding(KeyModifiers Modifiers, int Key)
 {
-    public static HotkeyBinding Default { get; } = new(KeyModifiers.Control | KeyModifiers.Windows, 0x77);
+    public static HotkeyBinding Default { get; } = new(KeyModifiers.Control | KeyModifiers.Shift, 0x20);
     public string DisplayName => string.Join(" + ",
         new[] { Modifiers.HasFlag(KeyModifiers.Control) ? "Ctrl" : null,
             Modifiers.HasFlag(KeyModifiers.Alt) ? "Alt" : null,
