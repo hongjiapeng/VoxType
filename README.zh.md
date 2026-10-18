@@ -172,6 +172,10 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args 
 - [浮窗交互与验证范围](docs/overlay-interaction.md)
 - [R2T2 实际模型验证](docs/r2t2-verification.md)
 
+## 致谢
+
+VoxType 的按住说话和直接输入文字体验，部分受到 macOS 菜单栏语音输入工具 [VoiceInput](https://github.com/yetone/voice-input-dist) 的启发。这里致谢的是产品交互灵感；VoxType 使用独立实现。
+
 ## 许可与第三方组件
 
 第三方组件与模型来源见[许可说明](docs/third-party-notices.md)。项目自身的开源许可证尚未选定。

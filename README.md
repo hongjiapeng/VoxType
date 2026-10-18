@@ -172,6 +172,10 @@ Detailed verification documents are currently in Chinese:
 - [Overlay interaction and test scope](docs/overlay-interaction.md)
 - [R2T2 real-model verification](docs/r2t2-verification.md)
 
+## Acknowledgements
+
+VoxType's push-to-talk and direct text insertion experience was inspired in part by [VoiceInput](https://github.com/yetone/voice-input-dist), a macOS menu bar speech-to-text app. This is product inspiration; VoxType's implementation is independent.
+
 ## License and third-party components
 
 See [third-party notices](docs/third-party-notices.md) for dependencies and model sources. A license for the project itself has not yet been selected.
