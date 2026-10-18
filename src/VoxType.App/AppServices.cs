@@ -23,6 +23,7 @@ public sealed class AppServices : IAsyncDisposable
     private ITextInjectionService? injection;
     private readonly LocalWhisperService localWhisper = new(new WhisperBackend());
     private bool disposed;
+    private Task overlaySave = Task.CompletedTask;
     private long lastLevelFrame, displayedSession, displayedRevision;
     public SettingsSession Settings { get; }
     public MainPageViewModel SettingsViewModel { get; }
@@ -30,7 +31,8 @@ public sealed class AppServices : IAsyncDisposable
     public OverlayWindow Overlay { get; }
     public TrayService Tray { get; }
     public DictationCoordinator? Coordinator { get; private set; }
-    public AppServices(SettingsLoadResult loaded, ISettingsStore store, string? managedModelPath = null)
+    public AppServices(SettingsLoadResult loaded, ISettingsStore store, string? managedModelPath = null,
+        VoxType.Infrastructure.Settings.OverlayPreferencesStore? overlayStore = null, OverlayPreferences? overlayPreferences = null)
     {
         managedModelPath ??= WhisperModelPath.Default;
         Settings = new(loaded.Settings);
@@ -41,7 +43,25 @@ public sealed class AppServices : IAsyncDisposable
         { DefaultModelPath = managedModelPath, DefaultR2T2DataDirectory = R2T2LocalLauncher.GetDefaultDataDirectory(AppContext.BaseDirectory), Models = models,
             RunLocalR2T2Async = (backend, directory, prepare) => R2T2LocalLauncher.LaunchAsync(AppContext.BaseDirectory, backend, directory, prepare) };
         SettingsWindow = new(SettingsViewModel);
-        Overlay = new();
+        Overlay = new(overlayPreferences);
+        SettingsViewModel.OverlayPinned = overlayPreferences?.Pinned == true;
+        SettingsViewModel.OverlayPinChanged += (_, pinned) => Overlay.SetPinned(pinned);
+        SettingsViewModel.ResetOverlayPositionRequested += (_, _) => Overlay.ResetPosition();
+        Overlay.PreferencesChanged += (_, preferences) =>
+        {
+            SettingsViewModel.OverlayPinned = preferences.Pinned;
+            if (overlayStore is not null) overlaySave = SaveOverlayAsync(overlaySave, overlayStore, preferences);
+        };
+        Overlay.StartRequested += (_, _) =>
+        {
+            // The non-activating button leaves the editor foreground. Snapshot that
+            // current target rather than reusing an earlier tray-menu snapshot.
+            focus?.Capture();
+            (focus as FocusContextService)?.FreezeForTray();
+            Start(fromTray: true);
+        };
+        Overlay.CancelRequested += (_, _) => Coordinator?.Cancel();
+        Overlay.SettingsRequested += (_, _) => SettingsWindow.ShowSettings();
         Tray = new(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         Tray.SettingsRequested += (_, _) => SettingsWindow.ShowSettings();
         Tray.ExitRequested += (_, _) => ((App)Microsoft.UI.Xaml.Application.Current).RequestExit();
@@ -65,6 +85,7 @@ public sealed class AppServices : IAsyncDisposable
         InitializeRecording();
         SettingsWindow.ApplyTheme(Settings.Current.Theme);
         Overlay.ApplyTheme(Settings.Current.Theme);
+        Overlay.InitializeStandby();
         if (loaded.Warning is not null) SettingsViewModel.Message = loaded.Warning;
     }
     private void InitializeRecording()
@@ -91,6 +112,7 @@ public sealed class AppServices : IAsyncDisposable
                 if (update.SessionId < displayedSession || update.SessionId == displayedSession && update.Revision < displayedRevision) return;
                 displayedSession = update.SessionId; displayedRevision = update.Revision;
                 Overlay.Update(update);
+                Overlay.ViewModel.CanStart = !Coordinator.IsBusy;
                 Tray.RecordingAvailable = !Coordinator.IsBusy;
                 if (update.State is SessionState.Failed or SessionState.Completed) SettingsViewModel.Message = update.Message;
                 if (update.State == SessionState.Cancelling) SettingsViewModel.Message = "已取消，正在清理当前任务；完成后可再次录音。";
@@ -104,6 +126,7 @@ public sealed class AppServices : IAsyncDisposable
             Coordinator.Transcribed += (_, text) => Dispatch(() => SettingsViewModel.LatestText = text);
             Coordinator.SessionFinished += (_, _) => Dispatch(() =>
             {
+                Overlay.ViewModel.CanStart = !Coordinator.IsBusy;
                 if (hotkeys is null) return;
                 hotkeys.CanCancel = Coordinator.IsBusy;
                 Tray.RecordingAvailable = !Coordinator.IsBusy;
@@ -129,6 +152,7 @@ public sealed class AppServices : IAsyncDisposable
         catch
         {
             hotkeys?.Dispose(); hotkeys = null;
+            Overlay.ViewModel.CanStart = false;
             Tray.RecordingAvailable = false;
             SettingsViewModel.Message = "全局录音服务未能启动，请重新启动 VoxType。设置仍可使用。";
         }
@@ -140,12 +164,19 @@ public sealed class AppServices : IAsyncDisposable
         {
             hotkeys.CanCancel = Coordinator.IsBusy;
             Tray.RecordingAvailable = false;
+            Overlay.ViewModel.CanStart = false;
         }
     }
 #if DEBUG
     internal void StartRecordingForCheck() => Start(true);
 #endif
     private void Dispatch(Action action) => App.DispatcherQueue.TryEnqueue(() => { if (!disposed) action(); });
+    private async Task SaveOverlayAsync(Task previous, VoxType.Infrastructure.Settings.OverlayPreferencesStore store, OverlayPreferences preferences)
+    {
+        await previous;
+        try { await store.SaveAsync(preferences); }
+        catch { if (!disposed) SettingsViewModel.Message = "浮窗设置未能保存，本次运行仍然有效。"; }
+    }
     public async ValueTask DisposeAsync()
     {
         if (disposed) return;
@@ -153,6 +184,7 @@ public sealed class AppServices : IAsyncDisposable
         hotkeys?.Dispose();
         try
         {
+            await overlaySave;
             await SettingsViewModel.Models.DisposeAsync();
             try
             {

@@ -18,10 +18,16 @@ public partial class OverlayViewModel : ObservableObject
     [ObservableProperty] public partial bool ShowStop { get; set; }
     [ObservableProperty] public partial bool ShowIcon { get; set; }
     [ObservableProperty] public partial bool IsStreamingPreview { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowSession))] public partial bool IsStandby { get; set; }
+    public bool ShowSession => !IsStandby;
+    [ObservableProperty] public partial bool ShowRetry { get; set; }
+    [ObservableProperty] public partial bool CanStart { get; set; } = true;
     public event EventHandler? StopRequested;
     [RelayCommand] private void Stop() => StopRequested?.Invoke(this, EventArgs.Empty);
     public void Update(SessionUpdate update)
     {
+        IsStandby = update.State == SessionState.Idle;
+        ShowRetry = update.State == SessionState.Failed;
         if (previewSession != update.SessionId)
         {
             previewSession = update.SessionId;
@@ -38,6 +44,7 @@ public partial class OverlayViewModel : ObservableObject
         ShowIcon = !IsListening && !IsProcessing;
         Title = update.State switch
         {
+            SessionState.Idle => "麦克风未开启",
             SessionState.Starting => "正在准备麦克风",
             SessionState.Listening => "正在聆听",
             SessionState.Stopping or SessionState.Processing => "正在识别",

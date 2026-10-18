@@ -32,6 +32,11 @@ public partial class MainPageViewModel : ObservableObject
     [ObservableProperty] public partial bool Windows { get; set; }
     [ObservableProperty] public partial string Message { get; set; } = "录音与识别服务正在接入，目前尚不可用。";
     [ObservableProperty] public partial string LatestText { get; set; } = "";
+    [ObservableProperty] public partial bool OverlayPinned { get; set; }
+    public event EventHandler<bool>? OverlayPinChanged;
+    public event EventHandler? ResetOverlayPositionRequested;
+    partial void OnOverlayPinnedChanged(bool value) => OverlayPinChanged?.Invoke(this, value);
+    [RelayCommand] private void ResetOverlayPosition() => ResetOverlayPositionRequested?.Invoke(this, EventArgs.Empty);
     [ObservableProperty] public partial int Section { get; set; }
     public bool ShowGeneral => Section == 0;
     public bool ShowRecognition => Section == 1;

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace VoxType.Infrastructure.Windows;
 
-public static class NativeWindow
+public static partial class NativeWindow
 {
     public delegate nint SubclassProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data);
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
@@ -19,7 +19,6 @@ public static class NativeWindow
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
     [DllImport("user32.dll", SetLastError = true)] private static extern int SetWindowRgn(nint hwnd, nint region, bool redraw);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint flags);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
     [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(nint monitor, int type, out uint x, out uint y);
     [DllImport("comctl32.dll", SetLastError = true)] public static extern bool SetWindowSubclass(nint hwnd, SubclassProc procedure, nuint id, nuint data);
     [DllImport("comctl32.dll")] public static extern bool RemoveWindowSubclass(nint hwnd, SubclassProc procedure, nuint id);
@@ -34,7 +33,6 @@ public static class NativeWindow
         [MarshalAs(UnmanagedType.Bool)] public bool Transition;
     }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
-    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public uint Size; public Rect Monitor, Work; public uint Flags; }
 
     public static void ConfigureOverlay(nint hwnd)
     {
@@ -68,17 +66,10 @@ public static class NativeWindow
         finally { DeleteObject(region); }
     }
 
-    public static void PositionOverlay(nint hwnd, nint target, double widthDip, double heightDip)
+    public static void PositionOverlay(nint hwnd, VoxType.Core.Dictation.OverlayRect bounds)
     {
-        nint monitor = MonitorFromWindow(target, 2);
-        var info = new MonitorInfo { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
-        if (!GetMonitorInfo(monitor, ref info)) throw new Win32Exception();
-        double scale = GetDpiForMonitor(monitor, 0, out uint dpi, out _) == 0 ? dpi / 96d : 1;
-        int width = Math.Min((int)Math.Round(widthDip * scale), info.Work.Right - info.Work.Left);
-        int height = Math.Min((int)Math.Round(heightDip * scale), info.Work.Bottom - info.Work.Top);
-        int x = info.Work.Left + (info.Work.Right - info.Work.Left - width) / 2;
-        int y = Math.Max(info.Work.Top, info.Work.Bottom - height - (int)(56 * scale));
-        if (!SetWindowPos(hwnd, -1, x, y, width, height, 0x10)) throw new Win32Exception();
+        int width = bounds.Width, height = bounds.Height;
+        if (!SetWindowPos(hwnd, -1, bounds.X, bounds.Y, width, height, 0x10)) throw new Win32Exception();
         // Clip the HWND itself: a XAML radius alone leaves opaque rectangular corners.
         nint region = CreateRoundRectRgn(0, 0, width + 1, height + 1, height, height);
         if (region == 0) throw new InvalidOperationException("无法创建语音浮窗圆角区域。");

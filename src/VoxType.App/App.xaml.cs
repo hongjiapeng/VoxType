@@ -48,7 +48,10 @@ public partial class App : Application
         if (modelPath != VoxType.Infrastructure.Transcription.WhisperModelPath.Default && string.IsNullOrWhiteSpace(loaded.Settings.LocalModelPath))
             loaded = loaded with { Settings = loaded.Settings with { LocalModelPath = modelPath } };
 #endif
-        services = new(loaded, store, modelPath);
+        var overlayStore = new VoxType.Infrastructure.Settings.OverlayPreferencesStore(
+            new VoxType.Infrastructure.Settings.AtomicSettingsFile(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(settingsPath)!, "overlay.json")));
+        var overlayPreferences = await overlayStore.LoadAsync();
+        services = new(loaded, store, modelPath, overlayStore, overlayPreferences);
 #if DEBUG
         services.Overlay.ViewModel.StopRequested += (_, _) => { if (checkingLayout) services.Overlay.ViewModel.Title = "结束按钮检查通过"; };
 #endif
@@ -79,7 +82,8 @@ public partial class App : Application
                 services.Settings.Current.R2T2StreamOutput,
                 ModelPath = modelPath, ModelExists = System.IO.File.Exists(modelPath),
                 DefaultModelPath = services.SettingsViewModel.DefaultModelPath,
-                SettingsPath = VoxType.Infrastructure.Settings.JsonSettingsStore.DefaultPath, OverlayVisible = services.Overlay.AppWindow.IsVisible };
+                SettingsPath = VoxType.Infrastructure.Settings.JsonSettingsStore.DefaultPath, OverlayVisible = services.Overlay.AppWindow.IsVisible,
+                OverlayDragRegions = services.Overlay.DragRegionsForCheck };
             System.IO.File.WriteAllText(arguments[diagnosticPrefix.Length..].Trim('"'), System.Text.Json.JsonSerializer.Serialize(diagnosticState));
             return;
         }
@@ -96,10 +100,10 @@ public partial class App : Application
         services.Overlay.ApplyTheme(previewTheme);
         var state = value switch
         {
-            "listening" or "voice" or "motion" or "tray" or "preview" or "preview-long" => VoxType.Core.Dictation.SessionState.Listening,
+            "listening" or "voice" or "motion" or "tray" or "preview" or "preview-long" or "menu-completed" => VoxType.Core.Dictation.SessionState.Listening,
             "processing" => VoxType.Core.Dictation.SessionState.Processing,
             "injecting" => VoxType.Core.Dictation.SessionState.Injecting,
-            "completed" => VoxType.Core.Dictation.SessionState.Completed,
+            "completed" or "auto-completed" => VoxType.Core.Dictation.SessionState.Completed,
             "failed" or "failed-long" or "failed-short" => VoxType.Core.Dictation.SessionState.Failed,
             _ => VoxType.Core.Dictation.SessionState.Idle
         };
@@ -113,7 +117,7 @@ public partial class App : Application
             "completed" => "文字已输入到当前应用",
             _ => "静态布局检查"
         };
-        services.Overlay.Update(new(++layoutSession, state, previewMessage, "布局检查", true,
+        services.Overlay.Update(new(++layoutSession, state, previewMessage, value == "auto-completed" ? "交互检查" : "布局检查", true,
             new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value == "tray",
             PartialText: value switch
             {
@@ -123,6 +127,7 @@ public partial class App : Application
             }));
         if (value == "voice") services.Overlay.PreviewAudioLevels();
         if (value == "motion") services.Overlay.PreviewAudioLevels(true);
+        if (value == "menu-completed") _ = services.Overlay.CompletePreviewAfterDelayAsync();
 #endif
     }
     public async void RequestExit()

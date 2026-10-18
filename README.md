@@ -4,6 +4,8 @@ Windows 11 x64 全局语音输入 MVP。默认按住 **Ctrl + Shift + Space** �
 
 当前已实现应用、录音、在线/本地 Provider、剪贴板输入和加密设置。自动测试及打包结果见 [验证记录](docs/verification.md)。真实麦克风、焦点交互与在线/离线中文完整流程尚待验收，不能把 fake 测试视为真实语音输入通过。
 
+语音浮窗支持拖动、位置记忆和输入区域避让；可在「设置 → 常规 → 语音浮窗」开启常驻麦克风入口。待机时不录音，点击才开始。使用说明和验证范围见 [语音浮窗](docs/overlay-interaction.md)。
+
 ## 开发运行
 
 需要 Windows 11、x64 .NET 10 SDK、Windows SDK 和 WinApp CLI 0.7+。本项目锁定 .NET SDK 10.0.301，并允许同 feature band 的较新 patch。首次构建会恢复 NuGet 依赖。

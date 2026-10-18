@@ -41,6 +41,12 @@
                             <TextBlock Text="system 跟随系统 · light 亮色 · dark 暗色" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel></Border>
                         <Border Style="{StaticResource Card}"><StackPanel Spacing="12">
+                            <TextBlock Text="语音浮窗" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ToggleSwitch Header="固定在桌面" IsOn="{x:Bind ViewModel.OverlayPinned, Mode=TwoWay}" AutomationProperties.AutomationId="OverlayPinnedSetting" />
+                            <TextBlock Text="关闭时，语音输入结束后浮窗自动消失；开启时，保留可拖动的麦克风入口。待机时麦克风关闭，点击才开始录音。更改立即保存。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Button Content="恢复浮窗自动位置" Command="{x:Bind ViewModel.ResetOverlayPositionCommand}" AutomationProperties.AutomationId="ResetOverlayPosition" />
+                        </StackPanel></Border>
+                        <Border Style="{StaticResource Card}"><StackPanel Spacing="12">
                             <TextBlock Text="最近一次识别" Style="{StaticResource BodyStrongTextBlockStyle}" />
                             <TextBlock Text="仅保留在内存中，退出即清除。自动输入被目标忽略时，可在这里复制。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBox Text="{x:Bind ViewModel.LatestText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="100" AutomationProperties.Name="最近一次识别文本" />
