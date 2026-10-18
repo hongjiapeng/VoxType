@@ -14,7 +14,13 @@ public partial class App : Application
     private bool checkingLayout;
 #endif
     public static Microsoft.UI.Dispatching.DispatcherQueue DispatcherQueue { get; private set; } = null!;
-    public App() => InitializeComponent();
+    public App()
+    {
+        InitializeComponent();
+#if DEBUG
+        UnhandledException += (_, args) => System.Diagnostics.Debug.WriteLine(args.Exception.ToString());
+#endif
+    }
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();

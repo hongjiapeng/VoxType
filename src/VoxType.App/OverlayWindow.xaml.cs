@@ -16,6 +16,9 @@ public sealed partial class OverlayWindow : Window, IDisposable
 {
     private readonly nint hwnd;
     private readonly NativeWindow.SubclassProc procedure;
+    private readonly NativeWindow.SubclassProc contentProcedure;
+    private nint contentBridge;
+    private bool chromeRefreshQueued;
     private readonly Rectangle[] bars = new Rectangle[5];
     private static readonly double[] barWeights = [0.50, 0.80, 1.0, 0.75, 0.55];
     private float latestLevel;
@@ -31,7 +34,6 @@ public sealed partial class OverlayWindow : Window, IDisposable
     private long currentSession;
     private long revision;
     private long lastFrame;
-    private bool renderingInitialized;
     private bool disposed;
     private OverlayPreferences preferences;
     private OverlayDisplay? display;
@@ -53,6 +55,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     {
         this.preferences = preferences ?? new();
         InitializeComponent();
+        SystemBackdrop = new TransparentOverlayBackdrop();
         // Like SlidePace's floating HUD, delegate dragging to the system title bar.
         ExtendsContentIntoTitleBar = true;
         // This window never activates, so initialize compiled Window bindings explicitly.
@@ -67,6 +70,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         AppWindow.SetPresenter(presenter);
         AppWindow.IsShownInSwitchers = false;
         procedure = HandleMessage;
+        contentProcedure = HandleContentMessage;
         if (!NativeWindow.SetWindowSubclass(hwnd, procedure, 2, 0)) throw new InvalidOperationException("无法设置浮层的无激活窗口行为。");
         NativeWindow.ConfigureOverlay(hwnd);
         for (int i = 0; i < bars.Length; i++)
@@ -77,11 +81,13 @@ public sealed partial class OverlayWindow : Window, IDisposable
         waveformTimer.Tick += WaveformTick;
         resizeTimer.Tick += ResizeTick;
         ViewModel.PropertyChanged += ViewModelChanged;
-        Root.Loaded += (_, _) => { UpdateDragRegion(); if (AppWindow.IsVisible) ResizeToContent(true); };
+        Root.Loaded += (_, _) => { UpdateDragRegion(); RefreshChrome(); if (AppWindow.IsVisible) ResizeToContent(true); };
+        Root.SizeChanged += (_, _) => RefreshContentBridge();
+        Root.ActualThemeChanged += (_, _) => RefreshChrome();
     }
     private nint HandleMessage(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data)
     {
-        // Use the whole window as the client area; the native region supplies the capsule outline.
+        // Use the whole window as the client area; XAML supplies the smooth capsule outline.
         if (message == 0x83) return 0; // WM_NCCALCSIZE: remove the residual non-client frame.
         if (message == 0x21) return 3; // MA_NOACTIVATE: deliver click without activation.
         if (message == 0xA3 && wParam == 2) return 0; // Do not maximize on caption double-click.
@@ -93,14 +99,47 @@ public sealed partial class OverlayWindow : Window, IDisposable
             dragStart = NativeWindow.OverlayBounds(hwnd);
         }
         if (message == 0x232) DispatcherQueue.TryEnqueue(FinishDrag); // WM_EXITSIZEMOVE
-        if (message == 0x31E) NativeWindow.ConfigureOverlayComposition(window); // WM_DWMCOMPOSITIONCHANGED
+        if (message is 0x31E or 0x31A) DispatcherQueue.TryEnqueue(() => { if (!disposed) RefreshChrome(); });
         if (message is 0x7E or 0x1A) DispatcherQueue.TryEnqueue(() =>
         {
             if (!disposed && AppWindow.IsVisible && !dragging) Reposition();
         }); // Display topology / work area changed.
         return NativeWindow.DefSubclassProc(window, message, wParam, lParam);
     }
-    public void ApplyTheme(string theme) => Root.RequestedTheme = theme switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => ElementTheme.Default };
+    public void ApplyTheme(string theme)
+    {
+        Root.RequestedTheme = theme switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => ElementTheme.Default };
+        RefreshChrome();
+    }
+    private nint HandleContentMessage(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data)
+    {
+        if (message == 0x46) NativeWindow.NormalizeOverlayContentPosition(lParam); // WM_WINDOWPOSCHANGING
+        if (message == 0x82) { NativeWindow.RemoveWindowSubclass(window, contentProcedure, 3); contentBridge = 0; }
+        return NativeWindow.DefSubclassProc(window, message, wParam, lParam);
+    }
+    private void RefreshContentBridge()
+    {
+        if (disposed) return;
+        nint bridge = NativeWindow.OverlayContentBridge(hwnd);
+        if (bridge != 0 && bridge != contentBridge)
+        {
+            if (contentBridge != 0) NativeWindow.RemoveWindowSubclass(contentBridge, contentProcedure, 3);
+            contentBridge = NativeWindow.SetWindowSubclass(bridge, contentProcedure, 3, 0) ? bridge : 0;
+        }
+        NativeWindow.FillOverlayContent(hwnd, contentBridge);
+    }
+    private void RefreshChrome()
+    {
+        if (disposed) return;
+        NativeWindow.ConfigureOverlayComposition(hwnd);
+        RefreshContentBridge();
+        if (chromeRefreshQueued) return;
+        chromeRefreshQueued = DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            chromeRefreshQueued = false;
+            if (!disposed) RefreshContentBridge();
+        });
+    }
     public void Update(SessionUpdate update)
     {
 #if DEBUG
@@ -215,10 +254,8 @@ public sealed partial class OverlayWindow : Window, IDisposable
             : OverlayPlacement.Place(display.Work, pixelWidth, pixelHeight, display.Scale, preferences.Anchor, inputArea);
         hasPlacement = true;
         if (bounds != previousBounds) NativeWindow.PositionOverlay(hwnd, bounds);
-        // Sending synthetic WM_ACTIVATE for an unchanged layout closes an open
-        // MenuFlyout. Re-prime composition only after an actual native size change.
         bool sizeChanged = bounds.Width != previousBounds.Width || bounds.Height != previousBounds.Height;
-        if (renderingInitialized && AppWindow.IsVisible && sizeChanged && !menuOpen) NativeWindow.RefreshOverlayContent(hwnd);
+        if (sizeChanged) RefreshChrome();
     }
     private void AnimateEntrance()
     {
@@ -283,11 +320,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     private void ShowWithoutActivation()
     {
         if (!AppWindow.IsVisible) AppWindow.Show(false);
-        if (!renderingInitialized)
-        {
-            NativeWindow.RefreshOverlayContent(hwnd);
-            renderingInitialized = true;
-        }
+        RefreshChrome();
     }
     private void StartClicked(object sender, RoutedEventArgs e)
     {
@@ -308,6 +341,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         hideTimer?.Cancel();
         resizeTimer.Stop();
         var menu = new MenuFlyout();
+        bool openSettings = false;
         menuOpen = true;
         menu.Closed += (_, _) =>
         {
@@ -315,6 +349,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
             if (disposed) return;
             if (AppWindow.IsVisible) ResizeToContent(false);
             ResumeCompletionHide();
+            if (openSettings) DispatcherQueue.TryEnqueue(() => { if (!disposed) SettingsRequested?.Invoke(this, EventArgs.Empty); });
         };
         var pin = new ToggleMenuFlyoutItem { Text = "固定在桌面", IsChecked = preferences.Pinned };
         AutomationProperties.SetAutomationId(pin, "OverlayPin");
@@ -330,26 +365,11 @@ public sealed partial class OverlayWindow : Window, IDisposable
             ResetPosition();
         };
         menu.Items.Add(reset);
-        var move = new MenuFlyoutSubItem { Text = "微调位置" };
-        AutomationProperties.SetAutomationId(move, "OverlayMove");
-        foreach (var (label, dx, dy) in new[] { ("向左", -32, 0), ("向右", 32, 0), ("向上", 0, -32), ("向下", 0, 32) })
-        {
-            var item = new MenuFlyoutItem { Text = label };
-            AutomationProperties.SetAutomationId(item, "OverlayMove" + (dx < 0 ? "Left" : dx > 0 ? "Right" : dy < 0 ? "Up" : "Down"));
-            item.Click += (_, _) =>
-            {
-                resizeTimer.Stop();
-                bounds = OverlayPlacement.Clamp(display!.Work, bounds with { X = bounds.X + (int)(dx * display.Scale), Y = bounds.Y + (int)(dy * display.Scale) });
-                NativeWindow.PositionOverlay(hwnd, bounds);
-                RememberPosition();
-            };
-            move.Items.Add(item);
-        }
-        menu.Items.Add(move);
         menu.Items.Add(new MenuFlyoutSeparator());
         var settings = new MenuFlyoutItem { Text = "设置" };
         AutomationProperties.SetAutomationId(settings, "OverlaySettings");
-        settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+        // Let the flyout finish restoring focus before activating the main window.
+        settings.Click += (_, _) => openSettings = true;
         menu.Items.Add(settings);
         if (state is SessionState.Starting or SessionState.Listening or SessionState.Stopping or SessionState.Processing)
         {
@@ -488,6 +508,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         resizeTimer.Tick -= ResizeTick;
         ViewModel.PropertyChanged -= ViewModelChanged;
         hideTimer?.Cancel(); hideTimer?.Dispose();
+        if (contentBridge != 0) NativeWindow.RemoveWindowSubclass(contentBridge, contentProcedure, 3);
         NativeWindow.RemoveWindowSubclass(hwnd, procedure, 2);
         Close();
         GC.KeepAlive(procedure);

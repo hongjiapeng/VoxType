@@ -10,13 +10,9 @@ public static partial class NativeWindow
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int command);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(nint hwnd);
-    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern nint SendMessage(nint hwnd, uint message, nuint wParam, nint lParam);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern nint GetWindowLongPtr(nint hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)] private static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
-    [DllImport("gdi32.dll")] private static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int ellipseWidth, int ellipseHeight);
-    [DllImport("gdi32.dll")] private static extern nint CreateRectRgn(int left, int top, int right, int bottom);
-    [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
     [DllImport("user32.dll", SetLastError = true)] private static extern int SetWindowRgn(nint hwnd, nint region, bool redraw);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint flags);
     [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(nint monitor, int type, out uint x, out uint y);
@@ -24,13 +20,13 @@ public static partial class NativeWindow
     [DllImport("comctl32.dll")] public static extern bool RemoveWindowSubclass(nint hwnd, SubclassProc procedure, nuint id);
     [DllImport("comctl32.dll")] public static extern nint DefSubclassProc(nint hwnd, uint message, nuint wParam, nint lParam);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint hwnd, uint attribute, ref int value, uint size);
-    [DllImport("dwmapi.dll")] private static extern int DwmEnableBlurBehindWindow(nint hwnd, ref BlurBehind blur);
-    [StructLayout(LayoutKind.Sequential)] private struct BlurBehind
+    [DllImport("dwmapi.dll")] private static extern int DwmExtendFrameIntoClientArea(nint hwnd, ref FrameMargins margins);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern nint FindWindowEx(nint parent, nint after, string className, string? name);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(nint hwnd, out Rect bounds);
+    [StructLayout(LayoutKind.Sequential)] private struct FrameMargins { public int Left, Right, Top, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct WindowPosition
     {
-        public uint Flags;
-        [MarshalAs(UnmanagedType.Bool)] public bool Enable;
-        public nint Region;
-        [MarshalAs(UnmanagedType.Bool)] public bool Transition;
+        public nint Window, InsertAfter; public int X, Y, Width, Height; public uint Flags;
     }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
 
@@ -44,54 +40,58 @@ public static partial class NativeWindow
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         if (!SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x10 | 0x20 | 0x01 | 0x02))
             throw new Win32Exception(Marshal.GetLastPInvokeError());
-        int roundCorners = 2;
-        DwmSetWindowAttribute(hwnd, 33, ref roundCorners, sizeof(int));
-        // Let the XAML surface draw the stroke; DWM's default border is bright on dark themes.
-        int noBorderColor = unchecked((int)0xFFFFFFFE);
-        DwmSetWindowAttribute(hwnd, 34, ref noBorderColor, sizeof(int));
+        // HRGN edges are binary pixels; leave the antialiased outline to XAML.
+        SetWindowRgn(hwnd, 0, true);
         ConfigureOverlayComposition(hwnd);
     }
 
     public static void ConfigureOverlayComposition(nint hwnd)
     {
-        // Keep DWM composition active when the HWND has a custom region. Without this,
-        // clipping the top-level WinUI window can discard its child composition surface.
-        nint region = CreateRectRgn(-2, -2, -1, -1);
-        if (region == 0) throw new InvalidOperationException("无法初始化语音浮窗合成区域。");
-        try
+        // Like SlidePace's HUD, extend composition across the client and suppress
+        // native chrome. Our transparent backdrop and XAML border draw the capsule.
+        long style = GetWindowLongPtr(hwnd, -16).ToInt64();
+        long clean = style & ~(0x00C00000L | 0x00040000L); // CAPTION, THICKFRAME
+        if (style != clean)
         {
-            var blur = new BlurBehind { Flags = 3, Enable = true, Region = region };
-            Marshal.ThrowExceptionForHR(DwmEnableBlurBehindWindow(hwnd, ref blur));
+            SetWindowLongPtr(hwnd, -16, (nint)clean);
+            SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x10 | 0x20 | 0x01 | 0x02 | 0x04);
         }
-        finally { DeleteObject(region); }
+        int none = 1, noColor = unchecked((int)0xFFFFFFFE);
+        DwmSetWindowAttribute(hwnd, 2, ref none, sizeof(int)); // disable native NC rendering/shadow
+        DwmSetWindowAttribute(hwnd, 33, ref none, sizeof(int)); // no native corner overlay
+        DwmSetWindowAttribute(hwnd, 34, ref noColor, sizeof(int));
+        DwmSetWindowAttribute(hwnd, 35, ref noColor, sizeof(int));
+        DwmSetWindowAttribute(hwnd, 38, ref none, sizeof(int)); // no system-drawn backdrop
+        var margins = new FrameMargins { Left = -1 };
+        Marshal.ThrowExceptionForHR(DwmExtendFrameIntoClientArea(hwnd, ref margins));
     }
 
     public static void PositionOverlay(nint hwnd, VoxType.Core.Dictation.OverlayRect bounds)
     {
         int width = bounds.Width, height = bounds.Height;
         if (!SetWindowPos(hwnd, -1, bounds.X, bounds.Y, width, height, 0x10)) throw new Win32Exception();
-        // Clip the HWND itself: a XAML radius alone leaves opaque rectangular corners.
-        nint region = CreateRoundRectRgn(0, 0, width + 1, height + 1, height, height);
-        if (region == 0) throw new InvalidOperationException("无法创建语音浮窗圆角区域。");
-        if (SetWindowRgn(hwnd, region, true) == 0)
-        {
-            int error = Marshal.GetLastPInvokeError();
-            DeleteObject(region);
-            throw new Win32Exception(error);
-        }
-        // Windows owns the region after a successful SetWindowRgn.
-        ConfigureOverlayComposition(hwnd);
     }
 
-    public static void RefreshOverlayContent(nint hwnd)
+    public static nint OverlayContentBridge(nint hwnd) => FindWindowEx(hwnd, 0, "Microsoft.UI.Content.DesktopChildSiteBridge", null);
+
+    public static void FillOverlayContent(nint hwnd, nint bridge)
     {
-        // A non-activating WinUI host needs its render surface primed on first show
-        // and after a native size change; otherwise UIA can work while pixels stay black.
-        // Notify only this HWND's XAML host, then return it to the inactive state.
-        // No native activation, foreground change, or input-queue attachment occurs.
-        const uint wmActivate = 0x0006;
-        nint foreground = GetForegroundWindow();
-        SendMessage(hwnd, wmActivate, 1, foreground);
-        SendMessage(hwnd, wmActivate, 0, foreground);
+        if (bridge == 0 || !GetClientRect(hwnd, out var client)) return;
+        if (GetWindowRect(hwnd, out var parent) && GetWindowRect(bridge, out var child) &&
+            child.Left == parent.Left && child.Top == parent.Top && child.Right - child.Left == client.Right && child.Bottom - child.Top == client.Bottom) return;
+        SetWindowPos(bridge, 0, 0, 0, client.Right, client.Bottom, 0x04 | 0x10);
+    }
+
+    public static void NormalizeOverlayContentPosition(nint pointer)
+    {
+        if (pointer == 0) return;
+        var position = Marshal.PtrToStructure<WindowPosition>(pointer);
+        if ((position.Flags & 0x02) == 0 && position.Y > 0)
+        {
+            int inset = position.Y;
+            position.Y = 0;
+            if ((position.Flags & 0x01) == 0) position.Height += inset;
+            Marshal.StructureToPtr(position, pointer, false);
+        }
     }
 }

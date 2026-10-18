@@ -2,8 +2,8 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="using:VoxType_App" Title="VoxType 语音输入">
-    <UserControl x:Name="Root">
-        <Grid Background="{ThemeResource OverlaySurfaceBrush}">
+    <UserControl x:Name="Root" UseLayoutRounding="True">
+        <Grid Background="Transparent">
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup x:Name="SessionStates">
                     <VisualState x:Name="Listening" />
@@ -20,7 +20,7 @@
                     </VisualState>
                 </VisualStateGroup>
             </VisualStateManager.VisualStateGroups>
-            <Border x:Name="Capsule" BorderBrush="{ThemeResource OverlayStrokeBrush}"
+            <Border x:Name="Capsule" Background="{ThemeResource OverlaySurfaceBrush}" BackgroundSizing="OuterBorderEdge" BorderBrush="{ThemeResource OverlayStrokeBrush}"
                     BorderThickness="1" CornerRadius="28" Padding="12,8">
               <Grid>
                 <Grid x:Name="ContentPanel" ColumnSpacing="8" VerticalAlignment="Center"

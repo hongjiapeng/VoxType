@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>VoxType — voice to text</title>
+  <defs><linearGradient id="teal" x2=".8" y2="1"><stop stop-color="#17B7AF"/><stop offset="1" stop-color="#087F8C"/></linearGradient></defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#teal)"/>
+  <rect x="88" y="52" width="48" height="88" rx="24" fill="white"/>
+  <path d="M64 118v8a48 48 0 0 0 96 0v-8M112 174v24M88 198h48M176 74h16m-8 0v54m-8 0h16"
+        fill="none" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

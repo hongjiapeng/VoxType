@@ -8,11 +8,12 @@ namespace VoxType_App;
 public sealed partial class MainWindow : Window
 {
     private bool exiting;
+    private readonly nint hwnd;
     public MainWindow(MainPageViewModel viewModel)
     {
         InitializeComponent();
         AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
-        nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         double scale = NativeWindow.GetDpiForWindow(hwnd) / 96d;
         AppWindow.Resize(new SizeInt32((int)(920 * scale), (int)(680 * scale)));
         Root.Children.Add(new MainPage(viewModel, hwnd));
@@ -26,7 +27,9 @@ public sealed partial class MainWindow : Window
     {
         if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Minimized } presenter)
             presenter.Restore();
-        AppWindow.Show(); Activate(); UpdateTitleBarTheme();
+        AppWindow.Show(); Activate();
+        NativeWindow.SetForegroundWindow(hwnd);
+        UpdateTitleBarTheme();
     }
     public void ExitWindow() { exiting = true; Close(); }
 }

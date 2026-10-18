@@ -202,29 +202,15 @@ $form.Add_Shown({
         if ($restored.Left -ne $after.Left -or $restored.Top -ne $after.Top) { throw 'Native drop position was not saved' }
         AssertFocus
     }
-    Test 'Move menu changes position and keeps foreground focus' {
+    Test 'Options menu has no directional move commands' {
         Preview 'voice'
-        $before = [OverlayInteractionProbe]::Bounds([IntPtr](Overlay).hwnd)
         UI @('invoke', 'OverlayMore')
         $popup = Popup
-        UI @('invoke', 'OverlayMove', '-w', "$($popup.hwnd)")
-        Start-Sleep -Milliseconds 150
-        # Submenus can have their own PopupHost; select the window containing the item.
-        $popups = @(UI @('list-windows', '--json') | ConvertFrom-Json) | Where-Object title -eq 'PopupHost'
-        $found = $false
-        foreach ($popup in $popups) {
-            $search = @(UI @('search', 'OverlayMoveLeft', '-w', "$($popup.hwnd)", '--json') | ConvertFrom-Json)
-            if ("$($search | ConvertTo-Json -Depth 15)" -match 'OverlayMoveLeft') {
-                UI @('invoke', 'OverlayMoveLeft', '-w', "$($popup.hwnd)")
-                $found = $true; break
-            }
-        }
-        if (-not $found) { throw 'Move-left action missing' }
-        $window = Overlay
-        $scale = [OverlayInteractionProbe]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
-        $after = [OverlayInteractionProbe]::Bounds([IntPtr]$window.hwnd)
-        if ($after.Left -ne $before.Left - [int](32 * $scale) -or $after.Top -ne $before.Top) { throw 'Move action changed the wrong coordinates' }
-        $script:dragged = $after
+        $tree = UI @('inspect', '-w', "$($popup.hwnd)", '--json') | ConvertFrom-Json
+        $json = $tree | ConvertTo-Json -Depth 30
+        if ($json -match 'OverlayMove|微调位置|向左|向右|向上|向下') { throw 'Directional adjustment commands remain' }
+        UI @('invoke', 'OverlayCancel', '-w', "$($popup.hwnd)")
+        $script:dragged = [OverlayInteractionProbe]::Bounds([IntPtr](Overlay).hwnd)
         AssertFocus
     }
     Test 'Next recording restores the dragged position' {

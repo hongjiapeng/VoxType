@@ -48,14 +48,12 @@ public static class OverlayPreviewActivation {
  [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetStyle(IntPtr hwnd, int index);
  [DllImport("gdi32.dll")] static extern IntPtr CreateRectRgn(int a, int b, int c, int d);
  [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr region);
- [DllImport("gdi32.dll")] static extern bool PtInRegion(IntPtr region, int x, int y);
  [DllImport("user32.dll")] static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
  [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
- public static bool HasCapsuleRegion(IntPtr hwnd, int width, int height) {
+ public static bool HasNoWindowRegion(IntPtr hwnd) {
   var oldContext = SetThreadDpiAwarenessContext(new IntPtr(-4));
   var region = CreateRectRgn(0, 0, 0, 0);
-  try { return GetWindowRgn(hwnd, region) > 0 && !PtInRegion(region, 0, 0) && !PtInRegion(region, width - 1, 0)
-    && PtInRegion(region, width / 2, height / 2) && PtInRegion(region, 1, height / 2); }
+  try { return GetWindowRgn(hwnd, region) == 0; }
   finally { DeleteObject(region); SetThreadDpiAwarenessContext(oldContext); }
  }
  public static void Activate(string id, string arguments) {
@@ -71,7 +69,7 @@ public static class OverlayPreviewActivation {
 try {
     $project = [xml](Get-Content -LiteralPath (Join-Path $root 'src/VoxType.App/VoxType.App.csproj') -Raw)
     $framework = $project.SelectSingleNode('/Project/PropertyGroup/TargetFramework').InnerText
-    $outputPath = Join-Path $root "src/VoxType.App/bin/Debug/$framework/win-x64"
+    $outputPath = Join-Path $root "src/VoxType.App/bin/x64/Debug/$framework/win-x64"
     $family = $AppUserModelId.Split('!')[0]
     $package = Get-AppxPackage | Where-Object PackageFamilyName -eq $family | Select-Object -First 1
     if (-not $package) { throw 'Development package is not registered; run winapp run first' }
@@ -130,7 +128,7 @@ try {
                 if ($hasDetail -and ($detail.Count -ne 1 -or $detail[0].isOffscreen)) { throw 'Detail is missing or offscreen' }
                 if (-not $hasDetail -and @($detail | Where-Object { -not $_.isOffscreen }).Count -gt 0) { throw 'Delivery still shows redundant detail' }
                 $pane = $tree.windows[0].elements[0]
-                if (-not [OverlayPreviewActivation]::HasCapsuleRegion([IntPtr]$window.hwnd, [int]$pane.width, [int]$pane.height)) { throw 'Native capsule clipping is missing' }
+                if (-not [OverlayPreviewActivation]::HasNoWindowRegion([IntPtr]$window.hwnd)) { throw 'Binary native clipping still overrides the antialiased XAML outline' }
                 $scale = [OverlayPreviewActivation]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
                 if ([Math]::Abs($pane.width - 320 * $scale) -gt 1) { throw 'Capsule width changed with its content' }
                 if ($status[0].y -lt $pane.y + 8 * $scale) { throw 'Title reaches the top padding' }
