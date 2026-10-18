@@ -1,143 +1,150 @@
 <div align="center">
 
-<img src="src/VoxType.App/Assets/VoxType.png" alt="VoxType" width="88" />
+**English** · [中文](./README.zh.md)
+
+<img src="docs/images/logo.svg" alt="VoxType" width="88" />
 
 # VoxType
 
-**按住快捷键说话，松开，让文字进入当前输入框。**
+**Hold to speak. Release to type. Stay in your flow.**
 
 ![Windows 11 x64](https://img.shields.io/badge/Windows_11-x64-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![WinUI 3](https://img.shields.io/badge/UI-WinUI_3-0078D4?style=flat-square)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
 ![Preview](https://img.shields.io/badge/status-preview-e6a23c?style=flat-square)
-[![下载](https://img.shields.io/badge/下载-GitHub_Releases-2ea44f?style=flat-square)](https://github.com/hongjiapeng/VoxType/releases)
+[![Download](https://img.shields.io/badge/Download-GitHub_Releases-2ea44f?style=flat-square)](https://github.com/hongjiapeng/VoxType/releases)
 
-[快速开始](#快速开始) · [识别服务](#选择识别服务) · [使用详解](docs/usage.md) · [构建发布](docs/releases.md)
+[Quick start](#quick-start) · [Speech engines](#choose-your-speech-engine) · [Downloads](https://github.com/hongjiapeng/VoxType/releases) · [Development](#development-and-releases)
 
 </div>
 
-VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑器、聊天窗口或表单，按住 **Ctrl + Shift + Space** 说话，松开后识别并输入文字；按 **Esc** 取消本次会话。
+VoxType is a global voice typing tool for Windows 11. Focus a text field in your editor, chat app, or form, hold **Ctrl + Shift + Space** to speak, then release to transcribe and insert the result. Press **Esc** to cancel.
 
-它常驻托盘，不需要 VoxType 账户。你可以在本机离线运行 Whisper，也可以连接本机／局域网 R2T2，或自己的 OpenAI 兼容转写服务。
+It lives in the system tray and needs no VoxType account. Run Whisper offline, connect to R2T2 on your PC or LAN, or use your own OpenAI-compatible transcription endpoint.
 
-## 产品预览
+## See words appear as you speak
 
-### 设置工作台
-
-配置识别服务、快捷键、深浅主题与浮窗常驻方式。
+With R2T2, the floating overlay shows a draft transcript while you hold the shortcut. Release it to transcribe the full recording and insert the final text into your app.
 
 <p align="center">
-  <img src="docs/screenshots/settings.png" alt="VoxType 设置窗口，显示使用指引、外观和语音浮窗选项" width="900" />
+  <img src="docs/screenshots/live-transcription.png" alt="VoxType showing draft transcription text while still listening" width="480" />
 </p>
 
-### 语音浮窗
+Draft words can change as more context arrives. Live preview is available with R2T2; Whisper and OpenAI Compatible transcribe after you release the shortcut. This image is a static UI demonstration. See [verification and current limits](#verification-and-current-limits) for the scope of testing.
 
-录音、识别、完成和失败都有状态反馈。按住手柄、波形或文字可直接拖动；浮窗记住位置，并尽量避让输入区域。
+### Move it where you need it
+
+Drag the handle, waveform, or status text. VoxType remembers the position and tries to avoid the input area. Enable **Keep on desktop** to retain a small microphone entry between sessions; it records only after you click it.
 
 <p align="center">
-  <img src="docs/screenshots/dictation-overlay.png" alt="深色语音胶囊，显示波形、聆听状态和结束按钮" width="320" />
+  <img src="docs/screenshots/idle-entry.png" alt="Compact idle microphone entry with a drag handle and options menu" width="120" />
 </p>
 
-开启「固定在桌面」后，空闲时收成小麦克风入口，点击才开始录音。
+## What it does
 
-<p align="center">
-  <img src="docs/screenshots/idle-entry.png" alt="浅色常驻入口，包含拖动手柄、麦克风和更多菜单" width="120" />
-</p>
-
-浮窗图片来自静态界面演示。真实麦克风与输入焦点的验收范围见[验证与当前边界](#验证与当前边界)。
-
-## 功能概览
-
-| 功能 | 说明 |
+| Feature | Capability |
 |---|---|
-| **全局按住说话** | 默认 Ctrl + Shift + Space，支持自定义组合；Esc 取消 |
-| **三种识别服务** | Whisper 本地、R2T2 本机／局域网、OpenAI Compatible |
-| **录音期间预览** | R2T2 在说话时更新临时文字，松开后用完整录音校正并输入 |
-| **轻量浮窗** | 波形、进度和失败重试；直接拖拽、位置记忆、自动避让、可选常驻入口 |
-| **本地推理设备** | Whisper 与本机 R2T2 分别选择 CPU / Vulkan |
-| **模型管理** | Whisper base 下载、导入、完整性校验及删除；R2T2 提供资源准备与启动入口 |
-| **文本交付** | 尝试恢复原输入窗口并粘贴，无法自动发送时保留结果供手动复制 |
+| **Global push to talk** | Hold Ctrl + Shift + Space, or choose your own shortcut; Esc cancels |
+| **Three speech engines** | Local Whisper, local/LAN R2T2, and OpenAI Compatible |
+| **Live draft text** | R2T2 previews during recording, then corrects the result from the full audio |
+| **Floating controls** | Waveform, progress, retry, direct dragging, position memory, input avoidance, and optional desktop entry |
+| **Local inference devices** | Separate CPU / Vulkan choices for Whisper and local R2T2 |
+| **Model management** | Download, import, verify, and delete Whisper base; prepare and launch local R2T2 resources |
+| **Text delivery** | Tries to restore the original input window and paste; retains the result for manual copying when delivery fails |
 
-## 快速开始
+## Quick start
 
-1. 获取 Windows x64 [发布包](docs/releases.md)：运行 `VoxType-0.1.0-win-x64-Setup.exe`，或完整解压便携 ZIP。
-2. 启动 VoxType。便携版双击 `VoxType.App.exe` 后在托盘打开设置，也可运行 `VoxType.App.exe --settings`。
-3. 在「语音识别」中选一个服务。首次使用推荐 **Whisper 本地 → 下载模型 → 使用此模型**，然后保存设置。
-4. 聚焦目标应用输入框，按住 **Ctrl + Shift + Space** 说话，松开后等待文字输入。
-5. 要取消时按 **Esc**。关闭设置窗口后程序继续在托盘运行；从托盘选择「退出」才会结束。
+1. Download the Windows x64 installer or portable ZIP from [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.0).
+2. Install VoxType, or extract the **entire** ZIP and run `VoxType.App.exe`. Open settings from the tray, or run `VoxType.App.exe --settings`.
+3. Choose a speech engine under **Speech recognition (语音识别)**. For offline use, select Whisper, download a model, choose **Use this model (使用此模型)**, and save.
+4. Focus your target text field, hold **Ctrl + Shift + Space**, speak, and release.
+5. Press **Esc** to cancel. Closing settings keeps VoxType in the tray; choose **Exit (退出)** from the tray menu to stop it.
 
-安装包按用户安装到 `%LOCALAPPDATA%\Programs\VoxType`，无需管理员权限。便携版需保留解压后的全部文件。应用随包携带 .NET 与 Windows App SDK 运行时，语音模型需另行下载或导入。
+The installer runs per user under `%LOCALAPPDATA%\Programs\VoxType` without administrator rights. Both packages include .NET and Windows App SDK runtimes. Speech models are downloaded or imported separately. The current application UI is in Chinese.
 
-## 选择识别服务
+## Choose your speech engine
 
-| 服务 | 适合 | 配置 |
+| Engine | Best for | Setup |
 |---|---|---|
-| **Whisper 本地** | 离线使用，让音频留在本机 | 下载／导入多语言 Whisper **base GGML**，约 148 MB；选择 CPU 或 Vulkan |
-| **R2T2** | 本机或局域网推理、录音期间预览 | 两个 GGUF 文件合计约 1.63 GiB；默认地址 `http://127.0.0.1:8272/v1`，模型 `r2t2-q4` |
-| **OpenAI Compatible** | 已有兼容语音转写接口 | 填写 Base URL、模型与可选 API Key；接口支持 `/v1/audio/transcriptions` |
+| **Local Whisper** | Offline transcription on your PC | Download/import multilingual Whisper **base GGML**, about 148 MB; choose CPU or Vulkan |
+| **R2T2** | Local/LAN inference with previews during recording | Two GGUF files totaling about 1.63 GiB; default URL `http://127.0.0.1:8272/v1`, model alias `r2t2-q4` |
+| **OpenAI Compatible** | An existing transcription service | Set a Base URL, model, and optional API key; the service must support `/v1/audio/transcriptions` |
 
-**Whisper：** 设置页支持官方 Hugging Face 或明确标注的 HF-Mirror 镜像，下载与导入会校验大小和 SHA-256。当前支持多语言 base GGML，不支持 `base.en` 或 GGUF。更改已加载的 Whisper 推理设备后，需从托盘退出并重启。
+**Whisper:** Choose Hugging Face or the explicitly labeled HF-Mirror source. Downloads and imports are checked by size and SHA-256. The managed model is multilingual base GGML; `base.en` and GGUF are not supported by this provider. Restart VoxType after changing the device once Whisper has loaded.
 
-**R2T2：** 在设置中选择本机 CPU / Vulkan、准备资源并启动服务，或连接另一台设备。实时预览会反复识别当前录音快照，临时文字可能变化；松开后才提交最终文字，不承诺固定延迟。部署与局域网鉴权见 [R2T2 指南](docs/r2t2-server.md)。
+**R2T2:** Prepare and start a CPU / Vulkan service from settings, or connect to another machine. Live preview repeatedly transcribes snapshots of the recording; draft words may be revised, and latency depends on the device and recording length. Only the final result is inserted. See the [deployment guide (Chinese)](docs/r2t2-server.md).
 
-**兼容服务：** 普通 OpenAI Compatible 的远程地址要求 HTTPS，HTTP 仅允许回环地址。R2T2 的局域网模式有单独的地址校验与鉴权要求。
+**Compatible services:** Remote OpenAI-compatible endpoints require HTTPS; HTTP is allowed only for loopback addresses. R2T2 LAN mode has separate address validation and authentication requirements.
 
-完整的下载行为、设备选择与会话规则见[使用与配置详解](docs/usage.md)。
+Detailed model, device, and session behavior is documented in the [usage guide (Chinese)](docs/usage.md).
 
-## 运行要求
+## Requirements
 
-| 要求 | 说明 |
+| Requirement | Notes |
 |---|---|
-| 系统 | Windows 11 x64；麦克风可用且已允许桌面应用访问 |
-| 桌面应用 | 发布包内含 .NET 10 与 Windows App SDK，无需单独安装这两项运行时 |
-| Whisper 本地 | CPU 支持 AVX、AVX2、FMA、F16C；需要 x64 Visual C++ 2022 Redistributable |
-| Vulkan | 额外需要兼容显卡和驱动；不支持时手动改为 CPU |
-| 本机 R2T2 准备／启动 | 额外需要 PowerShell 7 与 .NET 10 SDK，及模型下载空间 |
+| Windows | Windows 11 x64, an available microphone, and desktop microphone access enabled |
+| Desktop runtimes | .NET 10 and Windows App SDK are included in the release packages |
+| Local Whisper | CPU support for AVX, AVX2, FMA, and F16C; x64 Visual C++ 2022 Redistributable |
+| Vulkan | A compatible GPU and driver; switch to CPU if unsupported |
+| Local R2T2 preparation/startup | PowerShell 7, .NET 10 SDK, and space for the downloaded models |
 
-当前提供未签名的预览包，Windows 可能提示发布者未验证。应用不会安装信任证书或修改系统安全策略。
+Preview packages are unsigned, so Windows may show an unverified publisher. VoxType does not install trust certificates or change Windows security policy.
 
-## 常见问题
+## Troubleshooting
 
 <details>
-<summary><strong>说完后没有自动输入文字</strong></summary>
+<summary><strong>Text was recognized but did not appear in my app</strong></summary>
 
-先聚焦输入框，再按快捷键。目标关闭、最小化、焦点变化、权限更高或不接受粘贴时，自动发送可能失败；可以在设置中复制最近一次结果后手动粘贴。自定义快捷键请避开系统和编辑器已占用的组合。
+Focus the text field before using the shortcut. Delivery can fail if the target closes, is minimized, changes focus, runs at a higher privilege level, or rejects pasting. Copy the latest result from settings and paste manually. Avoid shortcuts already used by Windows or your editor.
 
 </details>
 
 <details>
-<summary><strong>听不到声音、录音太短或模型加载失败</strong></summary>
+<summary><strong>No sound, a short recording, or a model-loading error</strong></summary>
 
-检查 Windows 麦克风权限和默认录音设备。一次录音至少 250 毫秒、最长 60 秒。Whisper 使用前先完成模型下载／导入；Vulkan 加载失败时切换 CPU 并重启。资源不会在启动或录音时自动下载。
-
-</details>
-
-<details>
-<summary><strong>R2T2 准备或启动失败</strong></summary>
-
-确认 PowerShell 7、.NET 10 SDK 和两个模型已准备好。默认端口为 8272 / 8273；若提示占用，先关闭旧服务窗口，再启动。准备资源会复用已校验文件。详见 [R2T2 指南](docs/r2t2-server.md)。
+Check Windows microphone permissions and the default recording device. Recordings must be at least 250 milliseconds and are limited to 60 seconds. Download/import a Whisper model before use. If Vulkan fails to load, select CPU and restart. VoxType does not automatically download resources at startup or during recording.
 
 </details>
 
 <details>
-<summary><strong>配置和模型在哪里，卸载会删除吗？</strong></summary>
+<summary><strong>R2T2 preparation or startup failed</strong></summary>
 
-安装版与便携版使用 `%LOCALAPPDATA%\VoxType`。卸载或删除便携目录会保留设置和模型。旧 MSIX 开发版使用包的虚拟化目录，请以设置页显示的实际路径为准；切换分发方式不会自动迁移模型和配置。
+Check PowerShell 7, the .NET 10 SDK, and both model files. Default ports are 8272 / 8273; close the old service if a port is occupied. Resource preparation reuses files that pass verification. See the [R2T2 guide (Chinese)](docs/r2t2-server.md).
 
 </details>
 
-## 数据与隐私
+<details>
+<summary><strong>Where are settings and models? Does uninstalling remove them?</strong></summary>
 
-- 录音和最近识别文本只保存在内存，VoxType 不创建录音文件或转录历史。
-- Whisper 在本机推理；R2T2 与在线识别把音频发往你配置的服务。只有主动准备／下载资源时才下载模型。
-- API Key 使用 Windows DPAPI CurrentUser 加密，不以明文保存；这不防御同用户身份运行的恶意程序。
-- 自动输入通过剪贴板与 Ctrl+V 实现。程序尝试恢复原剪贴板、保留用户新复制的内容；复杂格式、占用和慢应用可能影响恢复。
+Installer and portable builds use `%LOCALAPPDATA%\VoxType`. Uninstalling or deleting the portable folder retains settings and models. The older MSIX development build uses a virtualized package directory; check the actual path shown in settings. Switching distribution formats does not migrate data automatically.
 
-路径、剪贴板行为与服务限制见[使用详解](docs/usage.md)。
+</details>
 
-## 开发与发布
+## Data and privacy
 
-开发需要 .NET 10 SDK（约束见 [`global.json`](global.json)）、Visual Studio 的 WinUI 开发工具、Windows SDK 和 WinApp CLI。
+- Audio and the latest transcript stay in memory. VoxType does not create audio recordings or transcription history on disk.
+- Whisper runs locally. R2T2 and online recognition send audio to the endpoint you configure. Models download only when you request preparation/download.
+- Saved API keys are encrypted with Windows DPAPI CurrentUser, rather than stored in plaintext. This does not protect against malicious software running as the same user.
+- Insertion uses the clipboard and Ctrl+V. VoxType attempts to restore the previous clipboard while preserving anything newly copied; complex formats, clipboard contention, and slow apps may affect restoration.
+
+See the [usage guide (Chinese)](docs/usage.md) for paths, clipboard behavior, and service restrictions.
+
+## Settings and personalization
+
+<details>
+<summary><strong>View the settings workspace</strong></summary>
+
+Choose your speech engine, shortcut, light/dark theme, and desktop overlay behavior.
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="VoxType settings workspace, with usage instructions, appearance, and overlay preferences" width="900" />
+</p>
+
+</details>
+
+## Development and releases
+
+Development requires the .NET 10 SDK constrained by [`global.json`](global.json), Visual Studio's WinUI tooling, the Windows SDK, and WinApp CLI.
 
 ```powershell
 dotnet restore VoxType.slnx -p:Platform=x64
@@ -146,23 +153,25 @@ dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64
 winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args '--settings'
 ```
 
-构建安装包与便携 ZIP（额外需要 Inno Setup 6 和 PowerShell 7）：
+Build the installer and portable ZIP with PowerShell 7 and Inno Setup 6:
 
 ```powershell
 ./scripts/build-release.ps1 -Version 0.1.0
 ```
 
-脚本执行 Release 测试、发布自包含的 x64 应用、检查必要文件，并生成安装包、ZIP 和 SHA-256 清单。详见[发布说明](docs/releases.md)。
+The script runs Release tests, publishes the self-contained x64 app, verifies required content, and generates an installer, ZIP, build information, and SHA-256 manifest. See the [release guide (Chinese)](docs/releases.md).
 
-## 验证与当前边界
+## Verification and current limits
 
-这是首个预览版本。已完成自动回归、浮窗界面检查及部分真实 Whisper / R2T2 模型检查；不同应用中的真实麦克风、快捷键冲突和焦点交付仍需按设备验收。自动测试通过不等同于所有应用都能可靠粘贴。
+This is an initial preview. Automated regression checks, overlay UI checks, and some real Whisper / R2T2 model checks have been completed. Microphone behavior, shortcut conflicts, and text delivery across apps still need validation on each device. Passing automated tests does not guarantee that every app will accept pasting.
 
-- [完整验证记录](docs/verification.md)
-- [手工验收表](docs/manual-acceptance.md)
-- [浮窗交互与验证范围](docs/overlay-interaction.md)
-- [R2T2 实际模型验证](docs/r2t2-verification.md)
+Detailed verification documents are currently in Chinese:
 
-## 许可与第三方组件
+- [Verification records](docs/verification.md)
+- [Manual acceptance checklist](docs/manual-acceptance.md)
+- [Overlay interaction and test scope](docs/overlay-interaction.md)
+- [R2T2 real-model verification](docs/r2t2-verification.md)
 
-第三方组件与模型来源见[许可说明](docs/third-party-notices.md)。项目自身的开源许可证尚未选定。
+## License and third-party components
+
+See [third-party notices](docs/third-party-notices.md) for dependencies and model sources. A license for the project itself has not yet been selected.

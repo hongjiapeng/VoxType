@@ -1,6 +1,6 @@
 # 使用与配置详解
 
-快速上手见 [README](../README.md)。本文保留识别服务、输入交付和数据保存的详细行为。
+快速上手见 [中文 README](../README.zh.md)。本文保留识别服务、输入交付和数据保存的详细行为。
 
 ## 配置识别
 
@@ -39,6 +39,3 @@ WASAPI 优先使用 RAW 流，跳过系统麦克风增强处理而不修改 Wind
 MSIX 下该逻辑设置路径会虚拟化到 `%LOCALAPPDATA%\Packages\<包 family>\LocalCache\Local\VoxType\settings.json`，直接查看未打包的 AppData 目录不能证明开发包没有保存设置。
 
 录音和最近识别文本只保留内存，不创建录音文件或转录历史。本地 Provider 不联网；主动点击模型下载时只请求所选模型文件，不上传录音、不携带在线 API Key。在线 Provider 只上传到用户配置的服务器。写入识别文本时设置 Windows 剪贴板历史/云同步排除标记。系统及第三方程序仍可能有自己的剪贴板行为。
-
-
-

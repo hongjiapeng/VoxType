@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">VoxType microphone</title>
+  <defs>
+    <linearGradient id="teal" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#17B7AF"/>
+      <stop offset="1" stop-color="#087F8C"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#teal)"/>
+  <rect x="104" y="52" width="48" height="88" rx="24" fill="white"/>
+  <path d="M80 118v8a48 48 0 0 0 96 0v-8M128 174v24M104 198h48"
+        fill="none" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
