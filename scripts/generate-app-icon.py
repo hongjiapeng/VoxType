@@ -31,7 +31,10 @@ def mark(size: int) -> Image.Image:
     ImageDraw.Draw(mask).rounded_rectangle(tuple(round(v * scale) for v in (8, 8, 248, 248)), radius=56 * scale, fill=255)
     tile.putalpha(mask)
     draw = ImageDraw.Draw(tile)
-    offset = 16 if size < 32 else 0
+    # AppWindow.SetIcon loads 48px for both native icon handles, even when the
+    # title bar displays it at 16–24px. Simplify that source frame as well.
+    compact = size <= 48
+    offset = 16 if compact else 0
 
     def box(values):
         return tuple(round((v + (offset if index % 2 == 0 else 0)) * scale) for index, v in enumerate(values))
@@ -50,8 +53,8 @@ def mark(size: int) -> Image.Image:
     line([(160, 118), (160, 126)])
     line([(112, 174), (112, 198)])
     line([(88, 198), (136, 198)])
-    # Optical simplification for 16–24px tray/taskbar icons.
-    if size >= 32:
+    # Keep small title/tray/taskbar images legible after Windows scales them.
+    if not compact:
         line([(176, 74), (192, 74)], 8)
         line([(184, 74), (184, 128)], 8)
         line([(176, 128), (192, 128)], 8)
