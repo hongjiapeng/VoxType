@@ -237,3 +237,11 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --no-build --no-restore
 | 松开时取消预览后再最终识别，取消丢弃迟到结果 | `LivePreview_StopCancelsInFlightPreviewBeforeFinalRecognition`、`LivePreview_CancelDiscardsLateSnapshotAndKeepsLeaseUntilItReturns` |
 | 预览错误不打断录音，关闭开关和其他 Provider 不发送快照 | `LivePreview_TransientFailureDoesNotStopMicrophoneOrPreventFinalResult`、`LivePreview_DisabledOrOtherProviderDoesNotRequestSnapshots` |
 | 悬浮层在聆听时保留波形和文字，最终文字不闪失 | `LivePreview_KeepsListeningWaveformAndText_AndRetainsResultThroughCompletion` |
+
+### 2026-10-18 首个 Windows x64 发布包
+
+README 按产品预览、快速开始、服务选择、运行要求、常见问题、隐私、开发与发布重新组织；原有识别／输入细节保存在 `docs/usage.md`，三张产品截图来自现有设置窗口与无录音静态浮窗场景。本地文档／图片链接检查通过。
+
+新增 `Portable.pubxml`、Inno Setup 用户级安装定义、`scripts/build-release.ps1` 和 `scripts/release.ps1`，并在 `.agents/skills/voxtype-release` 记录本仓库发布方式。桌面发布包含 .NET 和 Windows App SDK，保留 CPU / Vulkan Whisper 库、图标、第三方许可与 R2T2 启动资源，不包含模型或用户配置。构建信息记录源提交、工作区是否干净和测试计数；公开发布前核对提交与 SHA-256，只从完整草稿公开为 prerelease。
+
+Release/x64 回归 387 项通过，0 失败、0 跳过。实际启动自包含便携应用，UI Automation 确认设置页可用，再调用托盘“退出”，进程正常结束。Inno 安装程序在 `artifacts/install-smoke-<GUID>` 独立目录完成用户级静默安装；实际启动安装后的应用、确认设置页、从托盘退出后卸载，安装器和卸载器均返回 0，应用可执行文件与本次卸载注册项已移除。验收使用当前开发机器，不代表无开发环境或缺失 VC++ runtime 的干净机器验证；未把本次打包检查视为真实麦克风输入验收。发布包未进行 Authenticode 签名。

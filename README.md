@@ -1,75 +1,168 @@
+<div align="center">
+
+<img src="src/VoxType.App/Assets/VoxType.png" alt="VoxType" width="88" />
+
 # VoxType
 
-Windows 11 x64 全局语音输入 MVP。默认按住 **Ctrl + Shift + Space** 说话，松开后识别并向原窗口发送文本；**ESC** 取消。启动常驻托盘，设置窗口关闭后隐藏，托盘“退出”释放资源并结束进程。
+**按住快捷键说话，松开，让文字进入当前输入框。**
 
-当前已实现应用、录音、在线/本地 Provider、剪贴板输入和加密设置。自动测试及打包结果见 [验证记录](docs/verification.md)。真实麦克风、焦点交互与在线/离线中文完整流程尚待验收，不能把 fake 测试视为真实语音输入通过。
+![Windows 11 x64](https://img.shields.io/badge/Windows_11-x64-0078D4?style=flat-square&logo=windows&logoColor=white)
+![WinUI 3](https://img.shields.io/badge/UI-WinUI_3-0078D4?style=flat-square)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
+![Preview](https://img.shields.io/badge/status-preview-e6a23c?style=flat-square)
+[![下载](https://img.shields.io/badge/下载-GitHub_Releases-2ea44f?style=flat-square)](https://github.com/hongjiapeng/VoxType/releases)
 
-语音浮窗支持拖动、位置记忆和输入区域避让；可在「设置 → 常规 → 语音浮窗」开启常驻麦克风入口。待机时不录音，点击才开始。使用说明和验证范围见 [语音浮窗](docs/overlay-interaction.md)。
+[快速开始](#快速开始) · [识别服务](#选择识别服务) · [使用详解](docs/usage.md) · [构建发布](docs/releases.md)
 
-## 开发运行
+</div>
 
-需要 Windows 11、x64 .NET 10 SDK、Windows SDK 和 WinApp CLI 0.7+。本项目锁定 .NET SDK 10.0.301，并允许同 feature band 的较新 patch。首次构建会恢复 NuGet 依赖。
+VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑器、聊天窗口或表单，按住 **Ctrl + Shift + Space** 说话，松开后识别并输入文字；按 **Esc** 取消本次会话。
+
+它常驻托盘，不需要 VoxType 账户。你可以在本机离线运行 Whisper，也可以连接本机／局域网 R2T2，或自己的 OpenAI 兼容转写服务。
+
+## 产品预览
+
+### 设置工作台
+
+配置识别服务、快捷键、深浅主题与浮窗常驻方式。
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="VoxType 设置窗口，显示使用指引、外观和语音浮窗选项" width="900" />
+</p>
+
+### 语音浮窗
+
+录音、识别、完成和失败都有状态反馈。按住手柄、波形或文字可直接拖动；浮窗记住位置，并尽量避让输入区域。
+
+<p align="center">
+  <img src="docs/screenshots/dictation-overlay.png" alt="深色语音胶囊，显示波形、聆听状态和结束按钮" width="320" />
+</p>
+
+开启「固定在桌面」后，空闲时收成小麦克风入口，点击才开始录音。
+
+<p align="center">
+  <img src="docs/screenshots/idle-entry.png" alt="浅色常驻入口，包含拖动手柄、麦克风和更多菜单" width="120" />
+</p>
+
+浮窗图片来自静态界面演示。真实麦克风与输入焦点的验收范围见[验证与当前边界](#验证与当前边界)。
+
+## 功能概览
+
+| 功能 | 说明 |
+|---|---|
+| **全局按住说话** | 默认 Ctrl + Shift + Space，支持自定义组合；Esc 取消 |
+| **三种识别服务** | Whisper 本地、R2T2 本机／局域网、OpenAI Compatible |
+| **录音期间预览** | R2T2 在说话时更新临时文字，松开后用完整录音校正并输入 |
+| **轻量浮窗** | 波形、进度和失败重试；直接拖拽、位置记忆、自动避让、可选常驻入口 |
+| **本地推理设备** | Whisper 与本机 R2T2 分别选择 CPU / Vulkan |
+| **模型管理** | Whisper base 下载、导入、完整性校验及删除；R2T2 提供资源准备与启动入口 |
+| **文本交付** | 尝试恢复原输入窗口并粘贴，无法自动发送时保留结果供手动复制 |
+
+## 快速开始
+
+1. 获取 Windows x64 [发布包](docs/releases.md)：运行 `VoxType-0.1.0-win-x64-Setup.exe`，或完整解压便携 ZIP。
+2. 启动 VoxType。便携版双击 `VoxType.App.exe` 后在托盘打开设置，也可运行 `VoxType.App.exe --settings`。
+3. 在「语音识别」中选一个服务。首次使用推荐 **Whisper 本地 → 下载模型 → 使用此模型**，然后保存设置。
+4. 聚焦目标应用输入框，按住 **Ctrl + Shift + Space** 说话，松开后等待文字输入。
+5. 要取消时按 **Esc**。关闭设置窗口后程序继续在托盘运行；从托盘选择「退出」才会结束。
+
+安装包按用户安装到 `%LOCALAPPDATA%\Programs\VoxType`，无需管理员权限。便携版需保留解压后的全部文件。应用随包携带 .NET 与 Windows App SDK 运行时，语音模型需另行下载或导入。
+
+## 选择识别服务
+
+| 服务 | 适合 | 配置 |
+|---|---|---|
+| **Whisper 本地** | 离线使用，让音频留在本机 | 下载／导入多语言 Whisper **base GGML**，约 148 MB；选择 CPU 或 Vulkan |
+| **R2T2** | 本机或局域网推理、录音期间预览 | 两个 GGUF 文件合计约 1.63 GiB；默认地址 `http://127.0.0.1:8272/v1`，模型 `r2t2-q4` |
+| **OpenAI Compatible** | 已有兼容语音转写接口 | 填写 Base URL、模型与可选 API Key；接口支持 `/v1/audio/transcriptions` |
+
+**Whisper：** 设置页支持官方 Hugging Face 或明确标注的 HF-Mirror 镜像，下载与导入会校验大小和 SHA-256。当前支持多语言 base GGML，不支持 `base.en` 或 GGUF。更改已加载的 Whisper 推理设备后，需从托盘退出并重启。
+
+**R2T2：** 在设置中选择本机 CPU / Vulkan、准备资源并启动服务，或连接另一台设备。实时预览会反复识别当前录音快照，临时文字可能变化；松开后才提交最终文字，不承诺固定延迟。部署与局域网鉴权见 [R2T2 指南](docs/r2t2-server.md)。
+
+**兼容服务：** 普通 OpenAI Compatible 的远程地址要求 HTTPS，HTTP 仅允许回环地址。R2T2 的局域网模式有单独的地址校验与鉴权要求。
+
+完整的下载行为、设备选择与会话规则见[使用与配置详解](docs/usage.md)。
+
+## 运行要求
+
+| 要求 | 说明 |
+|---|---|
+| 系统 | Windows 11 x64；麦克风可用且已允许桌面应用访问 |
+| 桌面应用 | 发布包内含 .NET 10 与 Windows App SDK，无需单独安装这两项运行时 |
+| Whisper 本地 | CPU 支持 AVX、AVX2、FMA、F16C；需要 x64 Visual C++ 2022 Redistributable |
+| Vulkan | 额外需要兼容显卡和驱动；不支持时手动改为 CPU |
+| 本机 R2T2 准备／启动 | 额外需要 PowerShell 7 与 .NET 10 SDK，及模型下载空间 |
+
+当前提供未签名的预览包，Windows 可能提示发布者未验证。应用不会安装信任证书或修改系统安全策略。
+
+## 常见问题
+
+<details>
+<summary><strong>说完后没有自动输入文字</strong></summary>
+
+先聚焦输入框，再按快捷键。目标关闭、最小化、焦点变化、权限更高或不接受粘贴时，自动发送可能失败；可以在设置中复制最近一次结果后手动粘贴。自定义快捷键请避开系统和编辑器已占用的组合。
+
+</details>
+
+<details>
+<summary><strong>听不到声音、录音太短或模型加载失败</strong></summary>
+
+检查 Windows 麦克风权限和默认录音设备。一次录音至少 250 毫秒、最长 60 秒。Whisper 使用前先完成模型下载／导入；Vulkan 加载失败时切换 CPU 并重启。资源不会在启动或录音时自动下载。
+
+</details>
+
+<details>
+<summary><strong>R2T2 准备或启动失败</strong></summary>
+
+确认 PowerShell 7、.NET 10 SDK 和两个模型已准备好。默认端口为 8272 / 8273；若提示占用，先关闭旧服务窗口，再启动。准备资源会复用已校验文件。详见 [R2T2 指南](docs/r2t2-server.md)。
+
+</details>
+
+<details>
+<summary><strong>配置和模型在哪里，卸载会删除吗？</strong></summary>
+
+安装版与便携版使用 `%LOCALAPPDATA%\VoxType`。卸载或删除便携目录会保留设置和模型。旧 MSIX 开发版使用包的虚拟化目录，请以设置页显示的实际路径为准；切换分发方式不会自动迁移模型和配置。
+
+</details>
+
+## 数据与隐私
+
+- 录音和最近识别文本只保存在内存，VoxType 不创建录音文件或转录历史。
+- Whisper 在本机推理；R2T2 与在线识别把音频发往你配置的服务。只有主动准备／下载资源时才下载模型。
+- API Key 使用 Windows DPAPI CurrentUser 加密，不以明文保存；这不防御同用户身份运行的恶意程序。
+- 自动输入通过剪贴板与 Ctrl+V 实现。程序尝试恢复原剪贴板、保留用户新复制的内容；复杂格式、占用和慢应用可能影响恢复。
+
+路径、剪贴板行为与服务限制见[使用详解](docs/usage.md)。
+
+## 开发与发布
+
+开发需要 .NET 10 SDK（约束见 [`global.json`](global.json)）、Visual Studio 的 WinUI 开发工具、Windows SDK 和 WinApp CLI。
 
 ```powershell
 dotnet restore VoxType.slnx -p:Platform=x64
 dotnet build VoxType.slnx -p:Platform=x64
-dotnet test VoxType.slnx -p:Platform=x64
-winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local
+dotnet test tests/VoxType.Tests/VoxType.Tests.csproj -p:Platform=x64
+winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args '--settings'
 ```
 
-通过托盘打开设置，或在首次启动时传入设置参数：
+构建安装包与便携 ZIP（额外需要 Inno Setup 6 和 PowerShell 7）：
 
 ```powershell
-winapp run src/VoxType.App/VoxType.App.csproj --arch x64 --on local --args '--settings'
+./scripts/build-release.ps1 -Version 0.1.0
 ```
 
-修改程序后先从托盘退出旧进程，再重新运行，避免开发包内的文件被旧进程占用。重复激活会打开当前实例的设置。
+脚本执行 Release 测试、发布自包含的 x64 应用、检查必要文件，并生成安装包、ZIP 和 SHA-256 清单。详见[发布说明](docs/releases.md)。
 
-## 配置识别
+## 验证与当前边界
 
-**R2T2 本机／局域网** 已支持 `Confucius4-R2T2-Q4_K_M.gguf`，通过独立服务连接本机或局域网设备。先运行 `pwsh -File scripts/prepare-r2t2.ps1`，再运行 `pwsh -File scripts/start-r2t2.ps1`；设置中选择 R2T2，Base URL 填 `http://127.0.0.1:8272/v1`，模型填 `r2t2-q4`。需要主模型和音频投影文件，合计约 1.63 GiB。支持明确选择 HF-Mirror 下载源、Windows CPU/Vulkan 和 Linux Docker Compose 部署。默认开启“实时识别预览”：按住按键说话时，持续识别最新录音并在悬浮层更新临时文字；松开后对完整录音校正，完成后一次性输入。临时文字可能变化，长录音和较慢设备的预览更新会更慢；当前使用录音快照重复识别，尚未接入官方原生分块推理。按 Esc 丢弃预览。关闭开关并保存后，只在松开后上传和识别。升级后需重新启动 VoxType；连接旧版适配服务时请关闭开关或先升级并重启服务。局域网配置及接口说明见 [R2T2 部署文档](docs/r2t2-server.md)，实际 Q4 验证见 [R2T2 验证记录](docs/r2t2-verification.md)。
+这是首个预览版本。已完成自动回归、浮窗界面检查及部分真实 Whisper / R2T2 模型检查；不同应用中的真实麦克风、快捷键冲突和焦点交付仍需按设备验收。自动测试通过不等同于所有应用都能可靠粘贴。
 
-Windows 本机 R2T2 也可直接在 VoxType“语音识别 → 本机 R2T2 服务”选择 `cpu` 或 `vulkan`、指定数据目录，然后依次点击“准备本机资源”“启动本机服务”。这会打开可见的 PowerShell 7 窗口：准备资源需用户主动下载约 1.63 GiB 模型，启动时会编译适配服务并在窗口中常驻；关闭服务请按 Ctrl+C。启动按钮会保存本机地址和模型别名。需要已安装 PowerShell 7 与 .NET 10 SDK；远端 R2T2 仍在其运行设备上选择后端，VoxType 本机按钮不会修改远端服务。
+- [完整验证记录](docs/verification.md)
+- [手工验收表](docs/manual-acceptance.md)
+- [浮窗交互与验证范围](docs/overlay-interaction.md)
+- [R2T2 实际模型验证](docs/r2t2-verification.md)
 
-**Whisper 本地** 为默认模式。在“语音识别 → 本地模型”查看多语言 **Whisper base GGML**（约 148 MB），选择 Hugging Face 官方源或明确标注的 HF-Mirror 第三方镜像，点击“下载模型”。显示进度并支持取消，失败后可更换来源并重试；程序不会自动切换来源。也可通过“导入已有模型”选择 `ggml-base.bin`，原文件保留。下载/导入经过精确大小、上游 SHA-256 和模型头校验后原子安装，已有文件不被覆盖。取消和失败清理临时文件，重试从头开始。完成后点击“使用此模型”，保存本地服务与模型路径，下一次语音输入生效；其他设置不变。支持打开文件夹、刷新校验状态和确认删除；识别/录音使用模型期间拒绝删除，空闲时先卸载缓存，且仅删除程序模型目录的文件。关闭设置继续下载，托盘退出会取消并等待清理。
+## 许可与第三方组件
 
-Whisper 本地可在“语音识别 → Whisper 本地推理设备”选择 `cpu` 或 `vulkan`。默认 CPU；Vulkan 使用显卡和驱动，支持与设备有关，首次推理时验证加载，失败会提示改选 CPU。选择 Vulkan 不会自动退回 CPU，以免误以为正在 GPU 加速。Whisper.net 的原生运行时在应用进程内首次加载后固定，因此已使用过 Whisper 再更改设备时，需从托盘退出并重启 VoxType。Whisper 与 R2T2 各有自己的设备选择。GPU 是否更快需用相同模型和录音在目标设备实测。
-
-仍可在设置手动指定模型完整路径；留空使用设置页面显示的默认模型文件。MSIX 版本默认位于当前包的 `LocalCache\VoxType\models\ggml-base.bin`；非打包运行使用 `%LOCALAPPDATA%\VoxType\models\ggml-base.bin`。Windows 会重定向 MSIX 的普通 AppData 路径，请以页面显示的实际目录为准。Whisper 本地 Provider 目前不支持英文专用 `base.en`、其他模型尺寸或 GGUF；R2T2 GGUF 使用上述独立服务。手动路径仅进行模型头初步校验，实际完整性由加载验证；程序内下载/导入及刷新状态另有完整哈希校验。缺失/无效模型在打开麦克风前提示。应用不在启动或识别时自动下载模型，也不自动切换在线服务。
-
-本地使用同版 `Whisper.net`、CPU/Vulkan runtime 1.9.1，要求 AVX、AVX2、FMA、F16C 和 x64 Visual C++ 2022 Redistributable；Vulkan 还需兼容的显卡和驱动。首次识别后台加载模型；连续识别复用模型，5 分钟空闲或切换设置后安全卸载。ESC 会丢弃结果，正在执行的原生推理仍需结束后才能重新使用资源，不保证瞬间中止原生推理。
-
-**OpenAI Compatible** 在同一个设置表单填写 Base URL、模型名称、可选 API Key 和语言。例如 Base URL `http://localhost:8000/v1`，请求目标为 `/v1/audio/transcriptions`。远程服务器要求 HTTPS；HTTP 只支持回环地址。地址不接受账号、查询参数或片段。`auto` 自动检测语言，`zh` 指定中文。提交的是内存中的 WAV，服务器应返回 JSON `text` 字段。请求含 `response_format=json`，120 秒超时；不跟随重定向或自动重试请求。
-
-保存后的 Provider、语言、模型和快捷键用于下一次会话。当前录音保留开始时的配置。API Key 留空后保存会清除已保存的密钥。
-
-## 输入与使用边界
-
-先聚焦记事本或其他应用的输入框，再按住快捷键。录音最长 60 秒，不足 250 毫秒的录音不提交识别。收音先转换为 16 kHz 单声道，滤除直流偏置与低频轰鸣，再按 20 毫秒窗口检查声音：累计至少 200 毫秒达到约 -56 dBFS 即可继续，避免轻声和长停顿被整段平均音量误判。有效录音按声音窗口进行音量补偿，最多放大 8 倍（约 18 dB），峰值保留余量；保留全部音频，不裁剪停顿或尾音。静音及短促碰麦不会触发补偿。这是音量检查，不是可区分人声和环境声的语音活动模型；持续环境噪声仍可能通过。浮层波形来自真实音频 RMS；识别阶段显示进度环。
-
-WASAPI 优先使用 RAW 流，跳过系统麦克风增强处理而不修改 Windows 声音设置；设备明确返回 RAW 不支持时回退常规流。停止请求会持续到原生录音线程真正结束，避免快速松键/取消被底层启动线程覆盖。
-
-原窗口有效且权限可验证时，程序尽力恢复原窗口并发送 Ctrl+V。请释放 Alt/Ctrl/Shift/Win；等待超过 2 秒会改为复制。目标关闭、最小化、子焦点变化或以更高权限运行时，结果保留供手动粘贴，不自动提权。浏览器 DOM 输入位置、光标位置和应用是否接受粘贴无法普遍确认；“文本已发送”表示输入事件已提交。
-
-发送后约 750 毫秒尝试恢复原剪贴板，仅支持可安全快照的文本、HTML、RTF 等格式，并核对 sequence 与本次会话标记。用户新复制的内容会保留。复杂格式或持续占用时提示未恢复/复制失败。慢应用可能晚于恢复时刻才读取剪贴板；常规设置提供最近一次结果的复制入口。部分按键发送失败时不会重复发送全文。
-
-快捷键支持 Alt/Ctrl/Shift/Win 加 Space、A–Z、0–9、F1–F11。默认 Ctrl + Shift + Space，设置页可更换；请避开系统和编辑器已占用的组合。旧版本配置中的默认 Alt + Space 自动升级一次，其他自定义组合保留；升级后仍可自行选择 Alt + Space。重新保存设置会尝试重新安装 Hook。真实左右修饰键、AltGr 和常用软件冲突需要按 [验收表](docs/manual-acceptance.md) 检查。
-
-## 数据与隐私
-
-设置路径为当前用户 LocalApplicationData 下 `VoxType\settings.json`，使用版本化 JSON 与同目录临时文件原子替换。磁盘 DTO 只含 DPAPI CurrentUser 加密的 API Key；解密失败会清空密钥并提示重新输入。DPAPI 不防御同用户身份的恶意程序。
-
-MSIX 下该逻辑设置路径会虚拟化到 `%LOCALAPPDATA%\Packages\<包 family>\LocalCache\Local\VoxType\settings.json`，直接查看未打包的 AppData 目录不能证明开发包没有保存设置。
-
-录音和最近识别文本只保留内存，不创建录音文件或转录历史。本地 Provider 不联网；主动点击模型下载时只请求所选模型文件，不上传录音、不携带在线 API Key。在线 Provider 只上传到用户配置的服务器。写入识别文本时设置 Windows 剪贴板历史/云同步排除标记。系统及第三方程序仍可能有自己的剪贴板行为。
-
-## 打包
-
-```powershell
-dotnet build VoxType.slnx -c Release -p:Platform=x64
-winapp package src/VoxType.App/VoxType.App.csproj --arch x64 --no-sign
-```
-
-CLI 会返回实际 MSIX 路径。当前生成包未签名，供检查和后续签名使用，不能直接视为已签名安装包。本版本依赖 x64 .NET 10 runtime、Windows App Runtime 2.5.1 和上述本地识别 VC++ runtime；未做干净机器安装验收。没有建立 Store 身份、自动更新或开机自启动。
-
-第三方依赖和模型来源见 [许可说明](docs/third-party-notices.md)。项目自身许可证尚待项目维护者选择。
+第三方组件与模型来源见[许可说明](docs/third-party-notices.md)。项目自身的开源许可证尚未选定。

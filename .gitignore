@@ -5,6 +5,7 @@
 *.pfx
 *.cer
 artifacts/
+dist/
 *.msix
 *.msixbundle
 ui-test-artifacts/
