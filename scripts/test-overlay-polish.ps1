@@ -42,15 +42,82 @@ function Test([string]$Name, [scriptblock]$Body) {
 }
 function Capture([string]$Name) {
     $path = Join-Path $artifacts "$Name.png"
-    UI @('screenshot', '-w', "$( (Overlay).hwnd )", '-o', $path) | Out-Null
-    $path
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        UI @('screenshot', '-w', "$( (Overlay).hwnd )", '-o', $path) | Out-Null
+        $bitmap = [Drawing.Bitmap]::new($path)
+        try { $painted = $bitmap.GetPixel([int]($bitmap.Width/2), [int]($bitmap.Height/2)).A -ge 250 }
+        finally { $bitmap.Dispose() }
+        if ($painted) { return $path }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Capsule was not painted in screenshot $Name"
 }
 function Preview([string]$Theme) {
-    Activate "--check-overlay=voice --check-theme=$Theme"
-    UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-w', "$( (Overlay).hwnd )", '-t', '2000') | Out-Null
+    Activate "--check-overlay=tray --check-theme=$Theme"
+    UI @('wait-for', 'OverlayStatus', '--value', '开始说话…', '-t', '2000') | Out-Null
     Start-Sleep -Milliseconds 350
 }
+function Diagnostic {
+    $path = Join-Path $artifacts ([guid]::NewGuid().ToString('N') + '.json')
+    Activate "--check-diagnostics=$path"
+    $deadline = [DateTime]::UtcNow.AddSeconds(3)
+    while (-not (Test-Path -LiteralPath $path)) {
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'Debug diagnostics timed out' }
+        Start-Sleep -Milliseconds 10
+    }
+    Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+}
+function SetPinned([bool]$Pinned) {
+    if ((Diagnostic).OverlayPresentation.Pinned -eq $Pinned) { return }
+    Preview 'dark'
+    UI @('invoke', 'OverlayMore') | Out-Null
+    UI @('invoke', 'OverlayPin', '-w', "$( (Menu).hwnd )") | Out-Null
+}
+function SelectTheme([string]$Theme, [string]$MainWindow) {
+    UI @('invoke', 'ThemeSelector', '-w', $MainWindow) | Out-Null
+    $found = UI @('search', $Theme, '--json') | ConvertFrom-Json
+    $item = $found.matches | Where-Object { $_.type -eq 'ListItem' -and $_.name -eq $Theme } | Select-Object -First 1
+    if (-not $item) { throw "Theme option missing: $Theme" }
+    UI @('invoke', $item.selector) | Out-Null
+    $value = UI @('get-value', 'ThemeSelector', '-w', $MainWindow, '--json') | ConvertFrom-Json
+    if ($value.text -ne $Theme) { throw "Theme selection did not change to $Theme" }
+    Start-Sleep -Milliseconds 350
+}
+$initial = Diagnostic
+if ($initial.IsBusy) { throw 'A real recording is active; leave it untouched.' }
 try {
+    Test 'Settings selector changes dark to light and back without distorting the capsule' {
+        Activate '--settings'
+        UI @('wait-for', 'NavGeneral', '-t', '2000') | Out-Null
+        $main = Windows | Where-Object title -eq 'VoxType 设置' | Select-Object -First 1
+        UI @('invoke', 'NavGeneral', '-w', "$($main.hwnd)") | Out-Null
+        $originalTheme = (UI @('get-value', 'ThemeSelector', '-w', "$($main.hwnd)", '--json') | ConvertFrom-Json).text
+        try {
+            Activate '--check-overlay=failed-rejected --check-theme=dark'
+            UI @('wait-for', 'OverlayStatus', '--value', '请求被拒绝', '-t', '2000') | Out-Null
+            $dimensions = $null
+            foreach ($theme in @('dark', 'light', 'dark')) {
+                SelectTheme $theme "$($main.hwnd)"
+                $p = (Diagnostic).OverlayPresentation
+                if ($p.Theme -ne $theme -or [Math]::Abs($p.Radius-$p.Height/2) -gt 1) { throw 'Theme or capsule shape did not update through settings' }
+                $size = "$($p.Width),$($p.Height)"
+                if ($dimensions -and $size -ne $dimensions) { throw 'Changing theme changed capsule dimensions' }
+                $dimensions = $size
+                $path = Capture "settings-$theme"
+                $bitmap = [Drawing.Bitmap]::new($path)
+                try {
+                    if ($bitmap.GetPixel(0,0).A -ne 0 -or $bitmap.GetPixel($bitmap.Width-1,0).A -ne 0) { throw 'Settings theme switch left a rectangular backing' }
+                    $surface = $bitmap.GetPixel([int]($bitmap.Width/2), 8)
+                    if ($theme -eq 'light' -and ($surface.R -gt 245 -or $surface.R -lt 210)) { throw 'Light surface did not use the soft gray palette' }
+                    if ($theme -eq 'dark' -and $surface.R -gt 80) { throw 'Dark surface did not return after settings round trip' }
+                } finally { $bitmap.Dispose() }
+            }
+        } finally {
+            SelectTheme $originalTheme "$($main.hwnd)"
+            [OverlayChromeProbe]::ShowWindow([IntPtr]$main.hwnd,0) | Out-Null
+        }
+    }
+
     Test 'Directional position menu is removed' {
         Preview 'dark'
         UI @('invoke', 'OverlayMore')
@@ -128,9 +195,7 @@ try {
         [OverlayChromeProbe]::ShowWindow([IntPtr]$main.hwnd,0) | Out-Null
     }
     Test 'Compact idle entry stays transparent in both themes' {
-        Preview 'dark'
-        UI @('invoke', 'OverlayMore')
-        UI @('invoke', 'OverlayPin', '-w', "$( (Menu).hwnd )")
+        SetPinned $true
         foreach ($theme in @('dark','light','dark','light','dark','light')) {
             Activate "--check-overlay=hide --check-theme=$theme"
             UI @('wait-for', 'StartRecording', '-w', "$( (Overlay).hwnd )", '-t', '2000')
@@ -141,11 +206,13 @@ try {
                 if ($bitmap.GetPixel(0,0).A -ne 0 -or $bitmap.GetPixel($bitmap.Width-1,$bitmap.Height-1).A -ne 0) { throw 'Idle entry still has a rectangular backing' }
             } finally { $bitmap.Dispose() }
         }
-        Preview 'dark'
-        UI @('invoke', 'OverlayMore')
-        UI @('invoke', 'OverlayPin', '-w', "$( (Menu).hwnd )")
     }
 } finally {
+    try {
+        SetPinned $initial.OverlayPresentation.Pinned
+        $restoreTheme = if ($initial.PreviewTheme) { $initial.PreviewTheme } else { $initial.Theme }
+        Activate "--check-overlay=resume --check-theme=$restoreTheme"
+    } catch { $results.Add([pscustomobject]@{ name='Restore initial overlay preferences'; status='FAIL'; detail="$_" }) }
     $failed=@($results | Where-Object status -eq 'FAIL').Count
     [ordered]@{ appPid=$AppPid; passed=$results.Count-$failed; failed=$failed; results=@($results.ToArray()) } |
         ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $artifacts 'results.json') -Encoding utf8

@@ -23,6 +23,8 @@ public static partial class NativeWindow
     [DllImport("dwmapi.dll")] private static extern int DwmExtendFrameIntoClientArea(nint hwnd, ref FrameMargins margins);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern nint FindWindowEx(nint parent, nint after, string className, string? name);
     [DllImport("user32.dll")] private static extern bool GetClientRect(nint hwnd, out Rect bounds);
+    [DllImport("user32.dll")] private static extern int FillRect(nint dc, ref Rect rect, nint brush);
+    [DllImport("gdi32.dll")] private static extern nint GetStockObject(int item);
     [StructLayout(LayoutKind.Sequential)] private struct FrameMargins { public int Left, Right, Top, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct WindowPosition
     {
@@ -70,6 +72,13 @@ public static partial class NativeWindow
     {
         int width = bounds.Width, height = bounds.Height;
         if (!SetWindowPos(hwnd, -1, bounds.X, bounds.Y, width, height, 0x10)) throw new Win32Exception();
+    }
+
+    public static bool EraseOverlayBackground(nint hwnd, nint dc)
+    {
+        // With DWM extended across the client, GDI black is the zero-alpha backing.
+        // WinUI's normal WM_ERASEBKGND paints theme white in light mode instead.
+        return GetClientRect(hwnd, out var rect) && FillRect(dc, ref rect, GetStockObject(4)) != 0; // BLACK_BRUSH
     }
 
     public static nint OverlayContentBridge(nint hwnd) => FindWindowEx(hwnd, 0, "Microsoft.UI.Content.DesktopChildSiteBridge", null);

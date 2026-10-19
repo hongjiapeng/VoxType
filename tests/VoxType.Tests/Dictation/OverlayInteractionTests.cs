@@ -68,7 +68,6 @@ public sealed class OverlayInteractionTests
         model.Update(new(1, SessionState.Listening, "", "", true, FocusContext.Empty, FromTray: true, PartialText: "临时文字"));
         model.Update(new(1, SessionState.Idle, "麦克风未开启", "", true, FocusContext.Empty));
         Assert.AreEqual("麦克风未开启", model.Title);
-        Assert.AreEqual("", model.Detail);
         Assert.IsTrue(model.IsStandby);
         Assert.IsFalse(model.ShowSession);
         Assert.IsFalse(model.IsListening);
@@ -84,7 +83,8 @@ public sealed class OverlayInteractionTests
         var model = new OverlayViewModel();
         model.Update(new(1, SessionState.Failed, "网络错误", "", false, FocusContext.Empty));
         Assert.IsTrue(model.ShowRetry);
-        Assert.AreEqual("网络错误", model.Detail);
+        Assert.AreEqual("输入未完成", model.Title);
+        Assert.AreEqual("网络错误", model.FullDetail);
         model.Update(new(2, SessionState.Starting, "", "", false, FocusContext.Empty));
         Assert.IsFalse(model.ShowRetry);
         Assert.IsFalse(model.IsStandby);

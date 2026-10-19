@@ -13,11 +13,12 @@
                 <ResourceDictionary.ThemeDictionaries>
                     <ResourceDictionary x:Key="Light">
                         <LinearGradientBrush x:Key="OverlaySurfaceBrush" StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#FFFDFC" Offset="0" />
-                            <GradientStop Color="#F6F6F3" Offset="1" />
+                            <GradientStop Color="#EFF1F3" Offset="0" />
+                            <GradientStop Color="#E3E7EA" Offset="1" />
                         </LinearGradientBrush>
-                        <SolidColorBrush x:Key="OverlayStrokeBrush" Color="#18000000" />
-                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="#08000000" />
+                        <SolidColorBrush x:Key="OverlayStrokeBrush" Color="Transparent" />
+                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="#0C000000" />
+                        <Thickness x:Key="OverlayActionBorderThickness">0</Thickness>
                         <SolidColorBrush x:Key="OverlayListeningBrush" Color="#087F8C" />
                         <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="#E5F3F3" />
                         <SolidColorBrush x:Key="OverlayProcessingBrush" Color="#5865B7" />
@@ -38,6 +39,7 @@
                         </LinearGradientBrush>
                         <SolidColorBrush x:Key="OverlayStrokeBrush" Color="#24FFFFFF" />
                         <SolidColorBrush x:Key="OverlayBadgeBrush" Color="#0FFFFFFF" />
+                        <Thickness x:Key="OverlayActionBorderThickness">0</Thickness>
                         <SolidColorBrush x:Key="OverlayListeningBrush" Color="#71D5CE" />
                         <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="#293E40" />
                         <SolidColorBrush x:Key="OverlayProcessingBrush" Color="#ADB7F2" />
@@ -54,7 +56,8 @@
                     <ResourceDictionary x:Key="HighContrast">
                         <SolidColorBrush x:Key="OverlaySurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
                         <SolidColorBrush x:Key="OverlayStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                        <SolidColorBrush x:Key="OverlayBadgeBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+                        <Thickness x:Key="OverlayActionBorderThickness">1</Thickness>
                         <SolidColorBrush x:Key="OverlayListeningBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                         <SolidColorBrush x:Key="OverlayListeningSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
                         <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

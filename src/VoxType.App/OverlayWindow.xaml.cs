@@ -30,7 +30,8 @@ public sealed partial class OverlayWindow : Window, IDisposable
     private double width = 260, height = 56, fromWidth, fromHeight, targetWidth, targetHeight;
     private long resizeStarted;
     private bool sizingQueued;
-    private CancellationTokenSource? hideTimer;
+    private CancellationTokenSource? processingDelay;
+    private long? processingStarted;
     private long currentSession;
     private long revision;
     private long lastFrame;
@@ -40,6 +41,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     private OverlayRect bounds;
     private OverlayRect? inputArea;
     private bool hasPlacement, dragging, menuOpen;
+    private MenuFlyout? optionsMenu;
     private OverlayRect dragStart;
     private FrameworkElement? activeDragRegion;
     private SessionState state = SessionState.Idle;
@@ -49,6 +51,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     public event EventHandler? CancelRequested;
 #if DEBUG
     private bool layoutFixture;
+    private bool previewSessionActive;
 #endif
     public OverlayViewModel ViewModel { get; } = new();
     public OverlayWindow(OverlayPreferences? preferences = null)
@@ -89,12 +92,12 @@ public sealed partial class OverlayWindow : Window, IDisposable
     {
         // Use the whole window as the client area; XAML supplies the smooth capsule outline.
         if (message == 0x83) return 0; // WM_NCCALCSIZE: remove the residual non-client frame.
+        if (message == 0x14 && NativeWindow.EraseOverlayBackground(window, (nint)wParam)) return 1; // WM_ERASEBKGND
         if (message == 0x21) return 3; // MA_NOACTIVATE: deliver click without activation.
         if (message == 0xA3 && wParam == 2) return 0; // Do not maximize on caption double-click.
         if (message == 0x231) // WM_ENTERSIZEMOVE
         {
             resizeTimer.Stop();
-            hideTimer?.Cancel();
             dragging = true;
             dragStart = NativeWindow.OverlayBounds(hwnd);
         }
@@ -108,7 +111,15 @@ public sealed partial class OverlayWindow : Window, IDisposable
     }
     public void ApplyTheme(string theme)
     {
-        Root.RequestedTheme = theme switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => ElementTheme.Default };
+        var requested = theme switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => ElementTheme.Default };
+        if (Root.RequestedTheme != requested)
+        {
+            optionsMenu?.Hide();
+            if (Root.XamlRoot is { } root)
+                foreach (var popup in Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+                    if (popup.Child is ToolTip) popup.IsOpen = false;
+            Root.RequestedTheme = requested;
+        }
         RefreshChrome();
     }
     private nint HandleContentMessage(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data)
@@ -143,16 +154,28 @@ public sealed partial class OverlayWindow : Window, IDisposable
     public void Update(SessionUpdate update)
     {
 #if DEBUG
-        if (layoutFixture != (update.ProviderName == "布局检查")) { currentSession = 0; revision = 0; layoutFixture = false; }
-        if (update.ProviderName == "布局检查") layoutFixture = true;
+        // Preview and coordinator session numbers are independent. Never let a
+        // synthetic idle/processing update make the next real recording look stale.
+        if (previewSessionActive)
+        {
+            currentSession = 0; revision = 0;
+            previewSessionActive = false; layoutFixture = false;
+        }
 #endif
+        UpdateCore(update);
+    }
+    private void UpdateCore(SessionUpdate update)
+    {
         if (disposed || update.SessionId < currentSession || update.SessionId == currentSession && update.Revision < revision) return;
         bool newSession = update.SessionId != currentSession;
         revision = update.Revision;
         currentSession = update.SessionId;
         state = update.State;
-        hideTimer?.Cancel(); hideTimer?.Dispose(); hideTimer = null;
+        processingDelay?.Cancel(); processingDelay?.Dispose(); processingDelay = null;
         ViewModel.Update(update);
+        if (newSession || !ViewModel.DelayProcessing) processingStarted = null;
+        if (update.State is SessionState.Idle or SessionState.Cancelling or SessionState.Injecting or SessionState.Completed)
+            optionsMenu?.Hide();
         VisualStateManager.GoToState(Root, update.State switch
         {
             SessionState.Completed => "Completed",
@@ -163,6 +186,26 @@ public sealed partial class OverlayWindow : Window, IDisposable
         if (ViewModel.IsListening) waveformTimer.Start();
         else { waveformTimer.Stop(); ResetLevels(); }
         if (update.State is SessionState.Idle or SessionState.Cancelling) { ShowStandby(); return; }
+        // Clear the input area before delivery. Success returns directly to the optional idle entry.
+        if (update.State == SessionState.Injecting) { resizeTimer.Stop(); AppWindow.Hide(); return; }
+        if (update.State == SessionState.Completed) { ShowStandby(); return; }
+        bool delayProcessing = ViewModel.DelayProcessing;
+#if DEBUG
+        delayProcessing &= !layoutFixture;
+#endif
+        if (delayProcessing)
+        {
+            processingStarted ??= Environment.TickCount64;
+            int remaining = (int)Math.Max(0, 350 - (Environment.TickCount64 - processingStarted.Value));
+            if (remaining > 0)
+            {
+                resizeTimer.Stop();
+                AppWindow.Hide();
+                processingDelay = new();
+                _ = ShowProcessingAfterDelayAsync(update, remaining, processingDelay.Token);
+                return;
+            }
+        }
         bool entering = !AppWindow.IsVisible;
         positionTarget = update.Focus.Window;
         if (newSession || entering || display is null)
@@ -174,19 +217,10 @@ public sealed partial class OverlayWindow : Window, IDisposable
         ResizeToContent(!entering && !newSession);
         ShowWithoutActivation();
         if (entering) AnimateEntrance();
-#if DEBUG
-        // Keep static previews visible long enough to inspect every theme and terminal state.
-        if (layoutFixture) return;
-#endif
-        if (update.State == SessionState.Completed && !dragging && !menuOpen)
-        {
-            hideTimer = new();
-            _ = HideLaterAsync(update.SessionId, 600, hideTimer.Token);
-        }
     }
     private void ViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(ViewModel.Title) or nameof(ViewModel.Detail) or nameof(ViewModel.ShowStop) or nameof(ViewModel.IsStreamingPreview) or nameof(ViewModel.IsStandby)) || sizingQueued) return;
+        if (args.PropertyName is not (nameof(ViewModel.Title) or nameof(ViewModel.ShowStop) or nameof(ViewModel.IsStreamingPreview) or nameof(ViewModel.IsStandby)) || sizingQueued) return;
         // Coalesce a state update's property changes, including subsequent command feedback.
         sizingQueued = true;
         DispatcherQueue.TryEnqueue(() =>
@@ -209,19 +243,16 @@ public sealed partial class OverlayWindow : Window, IDisposable
             Text = ViewModel.Title, FontFamily = StatusText.FontFamily, FontSize = StatusText.FontSize,
             FontWeight = StatusText.FontWeight
         };
-        var detailMeasure = new Microsoft.UI.Xaml.Controls.TextBlock
-        {
-            Text = ViewModel.Detail, FontFamily = DetailText.FontFamily, FontSize = DetailText.FontSize,
-            MaxLines = 1
-        };
         var unlimited = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
         titleMeasure.Measure(unlimited);
-        detailMeasure.Measure(unlimited);
-        // Active states share one compact width, including live previews and tray controls.
-        // Only height adapts to the system text scale; content never stretches the capsule.
-        double nextWidth = ViewModel.IsStandby ? 120 : 320;
-        double textHeight = titleMeasure.DesiredSize.Height + (ViewModel.ShowDetail ? detailMeasure.DesiredSize.Height + 2 : 0);
-        double nextHeight = ViewModel.IsStandby ? 56 : Math.Max(56, Math.Ceiling(textHeight + 20));
+        // Reserve the full waveform width and only measure actions that are actually visible.
+        double actions = ViewModel.ShowActions ? 12 : 0;
+        if (ViewModel.ShowStop || ViewModel.ShowRetry) actions += 44;
+        if (ViewModel.ShowMore) actions += 28 + (ViewModel.ShowStop || ViewModel.ShowRetry ? 8 : 0);
+        double textWidth = titleMeasure.DesiredSize.Width;
+        double nextWidth = ViewModel.IsStandby ? 120 : Math.Clamp(Math.Ceiling(98 + textWidth + actions), 180, 420);
+        double textHeight = titleMeasure.DesiredSize.Height;
+        double nextHeight = ViewModel.IsStandby ? 56 : Math.Max(52, Math.Ceiling(textHeight + 20));
         if (Math.Abs(nextWidth - targetWidth) < 0.5 && Math.Abs(nextHeight - targetHeight) < 0.5 && resizeTimer.IsEnabled) return;
         resizeTimer.Stop();
         targetWidth = nextWidth; targetHeight = nextHeight;
@@ -252,6 +283,10 @@ public sealed partial class OverlayWindow : Window, IDisposable
         bounds = hasPlacement
             ? OverlayPlacement.Clamp(display.Work, bounds with { Width = pixelWidth, Height = pixelHeight })
             : OverlayPlacement.Place(display.Work, pixelWidth, pixelHeight, display.Scale, preferences.Anchor, inputArea);
+        // Growing live text must not extend into an input area that the short capsule avoided.
+        if (hasPlacement && inputArea is not null)
+            bounds = OverlayPlacement.Place(display.Work, bounds.Width, bounds.Height, display.Scale,
+                OverlayPlacement.Remember(display.Device, display.Work, bounds), inputArea);
         hasPlacement = true;
         if (bounds != previousBounds) NativeWindow.PositionOverlay(hwnd, bounds);
         bool sizeChanged = bounds.Width != previousBounds.Width || bounds.Height != previousBounds.Height;
@@ -277,9 +312,14 @@ public sealed partial class OverlayWindow : Window, IDisposable
         offset.Duration = TimeSpan.FromMilliseconds(180);
         visual.StartAnimation("Translation", offset);
     }
-    private async Task HideLaterAsync(long session, int delay, CancellationToken token)
+    private async Task ShowProcessingAfterDelayAsync(SessionUpdate update, int delay, CancellationToken token)
     {
-        try { await Task.Delay(delay, token); if (!disposed && currentSession == session && !token.IsCancellationRequested) ShowStandby(); }
+        try
+        {
+            await Task.Delay(delay, token);
+            if (!disposed && !token.IsCancellationRequested && currentSession == update.SessionId && revision == update.Revision && ViewModel.DelayProcessing)
+                UpdateCore(update);
+        }
         catch (OperationCanceledException) { }
     }
     public void InitializeStandby()
@@ -329,7 +369,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         // start/retry controls are exercised by UI acceptance scripts.
         if (layoutFixture)
         {
-            Update(new(currentSession + 1, SessionState.Listening, "静态布局检查", "布局检查", true,
+            UpdatePreview(new(currentSession + 1, SessionState.Listening, "静态布局检查", "布局检查", true,
                 new(NativeWindow.GetForegroundWindow(), 0, 0, 0, null), FromTray: true));
             return;
         }
@@ -338,17 +378,17 @@ public sealed partial class OverlayWindow : Window, IDisposable
     }
     private void MoreClicked(object sender, RoutedEventArgs e)
     {
-        hideTimer?.Cancel();
         resizeTimer.Stop();
         var menu = new MenuFlyout();
+        optionsMenu = menu;
         bool openSettings = false;
         menuOpen = true;
         menu.Closed += (_, _) =>
         {
+            if (optionsMenu == menu) optionsMenu = null;
             menuOpen = false;
             if (disposed) return;
             if (AppWindow.IsVisible) ResizeToContent(false);
-            ResumeCompletionHide();
             if (openSettings) DispatcherQueue.TryEnqueue(() => { if (!disposed) SettingsRequested?.Invoke(this, EventArgs.Empty); });
         };
         var pin = new ToggleMenuFlyoutItem { Text = "固定在桌面", IsChecked = preferences.Pinned };
@@ -427,17 +467,6 @@ public sealed partial class OverlayWindow : Window, IDisposable
         // Save the actual native position, not the last XAML pointer coordinate.
         if (bounds != dragStart) RememberPosition();
         ResizeToContent(false);
-        ResumeCompletionHide();
-    }
-    private void ResumeCompletionHide()
-    {
-        if (disposed || dragging || menuOpen || state != SessionState.Completed || ViewModel.IsStandby) return;
-#if DEBUG
-        if (layoutFixture) return;
-#endif
-        hideTimer?.Cancel(); hideTimer?.Dispose();
-        hideTimer = new();
-        _ = HideLaterAsync(currentSession, 600, hideTimer.Token);
     }
     private void RememberPosition()
     {
@@ -469,11 +498,32 @@ public sealed partial class OverlayWindow : Window, IDisposable
         envelope = smooth ? envelope + (normalized - envelope) * (normalized > envelope ? 0.4 : 0.15) : normalized;
         for (int i = 0; i < bars.Length; i++)
         {
-            double barHeight = 32 * Math.Max(0.15, envelope * barWeights[i]);
+            double barHeight = 24 * Math.Max(0.17, envelope * barWeights[i]);
             if (Math.Abs(barHeight - bars[i].Height) > 0.1) bars[i].Height = barHeight;
         }
     }
 #if DEBUG
+    internal void UpdatePreview(SessionUpdate update, bool interactive = true)
+    {
+        if (!previewSessionActive) { currentSession = 0; revision = 0; }
+        previewSessionActive = true;
+        layoutFixture = interactive;
+        UpdateCore(update);
+    }
+    internal object PresentationForCheck => new
+    {
+        State = state.ToString(), ViewModel.Title, ViewModel.ShowStop, ViewModel.ShowMore, ViewModel.IsStandby,
+        preferences.Pinned, SessionId = currentSession, Revision = revision, IsPreview = previewSessionActive,
+        ViewModel.DelayProcessing, Width = Capsule.ActualWidth, Height = Capsule.ActualHeight, Radius = Capsule.CornerRadius.TopLeft,
+        Theme = Root.ActualTheme.ToString(), RequestedTheme = Root.RequestedTheme.ToString(),
+        WaveformWidth = Waveform.ActualWidth, WaveformHeight = Waveform.ActualHeight,
+        Bars = bars.Select(bar => new
+        {
+            X = bar.TransformToVisual(Waveform).TransformPoint(new(0, 0)).X,
+            Y = bar.TransformToVisual(Waveform).TransformPoint(new(0, 0)).Y,
+            Width = bar.ActualWidth, Height = bar.ActualHeight
+        }).ToArray()
+    };
     internal object DragRegionsForCheck => Microsoft.UI.Input.InputNonClientPointerSource.GetForWindowId(AppWindow.Id)
         .GetRegionRects(Microsoft.UI.Input.NonClientRegionKind.Caption)
         .Select(rect => new { rect.X, rect.Y, rect.Width, rect.Height }).ToArray();
@@ -484,8 +534,8 @@ public sealed partial class OverlayWindow : Window, IDisposable
         if (disposed || !layoutFixture || currentSession != session) return;
         // Deliver internally, like the coordinator. A second external app activation
         // would itself dismiss native popup menus and invalidate this acceptance case.
-        Update(new(session + 1, SessionState.Completed, "文字已输入到当前应用", "交互检查", true,
-            new(positionTarget, 0, 0, 0, null)));
+        UpdatePreview(new(session + 1, SessionState.Completed, "文字已输入到当前应用", "交互检查", true,
+            new(positionTarget, 0, 0, 0, null)), interactive: false);
     }
     public void PreviewAudioLevels(bool animate = false)
     {
@@ -497,17 +547,18 @@ public sealed partial class OverlayWindow : Window, IDisposable
         // Declared DEBUG fixtures; production never synthesizes audio levels.
     }
 #endif
-    private void ResetLevels() { latestLevel = 0; envelope = 0; foreach (var bar in bars) bar.Height = 4.8; }
+    private void ResetLevels() { latestLevel = 0; envelope = 0; foreach (var bar in bars) bar.Height = 4.08; }
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
+        optionsMenu?.Hide();
         waveformTimer.Stop();
         waveformTimer.Tick -= WaveformTick;
         resizeTimer.Stop();
         resizeTimer.Tick -= ResizeTick;
         ViewModel.PropertyChanged -= ViewModelChanged;
-        hideTimer?.Cancel(); hideTimer?.Dispose();
+        processingDelay?.Cancel(); processingDelay?.Dispose();
         if (contentBridge != 0) NativeWindow.RemoveWindowSubclass(contentBridge, contentProcedure, 3);
         NativeWindow.RemoveWindowSubclass(hwnd, procedure, 2);
         Close();

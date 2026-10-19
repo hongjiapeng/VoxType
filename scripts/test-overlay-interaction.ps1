@@ -142,7 +142,7 @@ $form.Add_Shown({
         $script:targetFocus = [OverlayInteractionProbe]::Focus()
     }
     Test 'Automatic avoidance keeps the bottom input field visible' {
-        Preview 'voice'
+        Preview 'tray'
         UI @('invoke', 'OverlayMore')
         UI @('invoke', 'OverlayResetPosition', '-w', "$( (Popup).hwnd )")
         Start-Sleep -Milliseconds 200
@@ -172,7 +172,7 @@ $form.Add_Shown({
         }
     } -Physical $true
     Test 'Native caption region includes waveform and text but excludes buttons' {
-        Preview 'voice'
+        Preview 'tray'
         $window = Overlay
         $path = Join-Path $artifacts 'caption-regions.json'
         Activate "--check-diagnostics=$path"
@@ -180,12 +180,12 @@ $form.Add_Shown({
         while (-not (Test-Path -LiteralPath $path) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 50 }
         $diagnostics = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
         $scale = [OverlayInteractionProbe]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
-        foreach ($x in @(20, 48, 130, 245, 292)) {
+        foreach ($x in @(20, 48, 100, 170, 230)) {
             $covered = @($diagnostics.OverlayDragRegions | Where-Object {
                 $x * $scale -ge $_.X -and $x * $scale -lt $_.X + $_.Width -and
                 $window.height / 2 -ge $_.Y -and $window.height / 2 -lt $_.Y + $_.Height
             }).Count -gt 0
-            if ($covered -ne ($x -lt 200)) { throw "Incorrect native caption hit region at $x DIP" }
+            if ($covered -ne ($x -lt 140)) { throw "Incorrect native caption hit region at $x DIP" }
         }
         AssertFocus
     }
@@ -203,13 +203,14 @@ $form.Add_Shown({
         AssertFocus
     }
     Test 'Options menu has no directional move commands' {
-        Preview 'voice'
+        Preview 'tray'
         UI @('invoke', 'OverlayMore')
         $popup = Popup
         $tree = UI @('inspect', '-w', "$($popup.hwnd)", '--json') | ConvertFrom-Json
         $json = $tree | ConvertTo-Json -Depth 30
         if ($json -match 'OverlayMove|微调位置|向左|向右|向上|向下') { throw 'Directional adjustment commands remain' }
         UI @('invoke', 'OverlayCancel', '-w', "$($popup.hwnd)")
+        Preview 'voice'
         $script:dragged = [OverlayInteractionProbe]::Bounds([IntPtr](Overlay).hwnd)
         AssertFocus
     }
@@ -223,6 +224,7 @@ $form.Add_Shown({
         AssertFocus
     }
     Test 'Fixed mode returns to a compact microphone entry after completion' {
+        Preview 'tray'
         UI @('invoke', 'OverlayMore')
         UI @('invoke', 'OverlayPin', '-w', "$( (Popup).hwnd )")
         Preview 'auto-completed'
@@ -249,7 +251,7 @@ $form.Add_Shown({
         UI @('wait-for', 'RetryRecording', '-t', '2000')
         Screenshot 'failure'
         UI @('invoke', 'RetryRecording')
-        UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '2000')
+        UI @('wait-for', 'OverlayStatus', '--value', '开始说话…', '-t', '2000')
         UI @('wait-for', 'StopRecording', '-t', '2000')
         AssertFocus
     }
@@ -258,7 +260,7 @@ $form.Add_Shown({
         UI @('wait-for', 'StartRecording', '-t', '2000')
         UI @('wait-for', 'StopRecording', '--gone', '-t', '1000')
         UI @('invoke', 'StartRecording')
-        UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '2000')
+        UI @('wait-for', 'OverlayStatus', '--value', '开始说话…', '-t', '2000')
         AssertFocus
     }
     Test 'Temporary mode hides automatically after completion' {
@@ -269,18 +271,17 @@ $form.Add_Shown({
         if (@(UI @('list-windows', '--json') | ConvertFrom-Json).Count -ne 0) { throw 'Temporary overlay stayed visible' }
         AssertFocus
     }
-    Test 'Completion waits for the open menu before hiding' {
+    Test 'Completion dismisses the open menu and recording bar' {
         Preview 'menu-completed'
         UI @('invoke', 'OverlayMore')
         Start-Sleep -Milliseconds 2800
-        UI @('wait-for', 'OverlayStatus', '--value', '已发送文本', '-w', "$( (Overlay).hwnd )", '-t', '1000')
-        UI @('invoke', 'OverlayResetPosition', '-w', "$( (Popup).hwnd )")
+        UI @('wait-for', 'OverlayPin', '--gone', '-t', '1000')
         UI @('wait-for', 'OverlayStatus', '--gone', '-t', '3000')
         AssertFocus
     }
     Test 'Light theme retains readable controls' {
         Activate '--check-overlay=voice --check-theme=light'
-        UI @('wait-for', 'OverlayStatus', '--value', '正在聆听', '-t', '2000')
+        UI @('wait-for', 'OverlayStatus', '--value', '松开结束', '-t', '2000')
         Screenshot 'light-listening'
         AssertFocus
     }

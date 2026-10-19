@@ -85,32 +85,44 @@ public partial class App : Application
             string modelPath = VoxType.Infrastructure.Transcription.WhisperModelPath.Resolve(services.Settings.Current.LocalModelPath);
             var diagnosticState = new { services.Coordinator?.IsBusy, services.Coordinator?.State,
                 services.Settings.Current.ProviderId, Hotkey = services.Settings.Current.Hotkey.DisplayName, SettingsVersion = services.Settings.Current.Version,
-                services.Settings.Current.R2T2StreamOutput,
+                services.Settings.Current.R2T2StreamOutput, services.Settings.Current.Theme, PreviewTheme = services.SettingsViewModel.Theme,
                 ModelPath = modelPath, ModelExists = System.IO.File.Exists(modelPath),
                 DefaultModelPath = services.SettingsViewModel.DefaultModelPath,
                 SettingsPath = VoxType.Infrastructure.Settings.JsonSettingsStore.DefaultPath, OverlayVisible = services.Overlay.AppWindow.IsVisible,
-                OverlayDragRegions = services.Overlay.DragRegionsForCheck };
+                OverlayDragRegions = services.Overlay.DragRegionsForCheck, OverlayPresentation = services.Overlay.PresentationForCheck };
             System.IO.File.WriteAllText(arguments[diagnosticPrefix.Length..].Trim('"'), System.Text.Json.JsonSerializer.Serialize(diagnosticState));
             return;
         }
         if (arguments.Contains("--check-recording=start", StringComparison.Ordinal)) { services?.StartRecordingForCheck(); return; }
         if (arguments.Contains("--check-recording=stop", StringComparison.Ordinal)) { services?.Coordinator?.Stop(); return; }
         if (arguments.Contains("--check-recording=cancel", StringComparison.Ordinal)) { services?.Coordinator?.Cancel(); return; }
+        const string sessionUpdatePrefix = "--check-session-update=";
+        if (arguments.StartsWith(sessionUpdatePrefix, StringComparison.Ordinal) && services is not null)
+        {
+            if (services.Coordinator?.IsBusy == true) return;
+            // Replay coordinator-shaped updates without recording, contacting a provider or injecting text.
+            var parts = arguments[sessionUpdatePrefix.Length..].Split(':');
+            if (parts.Length == 3 && long.TryParse(parts[0], out var session) && long.TryParse(parts[1], out var revision) &&
+                Enum.TryParse<VoxType.Core.Dictation.SessionState>(parts[2], out var sessionState))
+                services.Overlay.Update(new(session, sessionState, "会话交接检查", "会话交接检查", true,
+                    new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), Revision: revision));
+            return;
+        }
         const string prefix = "--check-overlay=";
         int index = arguments.IndexOf(prefix, StringComparison.Ordinal);
         if (index < 0 || services is null) return;
         if (services.Coordinator?.IsBusy == true) return;
         string value = arguments[(index + prefix.Length)..].Split(' ')[0];
         string previewTheme = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault(x => x.StartsWith("--check-theme=", StringComparison.Ordinal))?[14..] ?? services.Settings.Current.Theme;
+            .FirstOrDefault(x => x.StartsWith("--check-theme=", StringComparison.Ordinal))?[14..] ?? services.SettingsViewModel.Theme;
         services.Overlay.ApplyTheme(previewTheme);
         var state = value switch
         {
-            "listening" or "voice" or "motion" or "tray" or "preview" or "preview-long" or "menu-completed" => VoxType.Core.Dictation.SessionState.Listening,
-            "processing" => VoxType.Core.Dictation.SessionState.Processing,
+            "listening" or "voice" or "motion" or "tray" or "tray-preview" or "preview" or "preview-long" or "menu-completed" => VoxType.Core.Dictation.SessionState.Listening,
+            "processing" or "release" => VoxType.Core.Dictation.SessionState.Processing,
             "injecting" => VoxType.Core.Dictation.SessionState.Injecting,
             "completed" or "auto-completed" => VoxType.Core.Dictation.SessionState.Completed,
-            "failed" or "failed-long" or "failed-short" => VoxType.Core.Dictation.SessionState.Failed,
+            "failed" or "failed-long" or "failed-short" or "failed-rejected" => VoxType.Core.Dictation.SessionState.Failed,
             _ => VoxType.Core.Dictation.SessionState.Idle
         };
         checkingLayout = state != VoxType.Core.Dictation.SessionState.Idle;
@@ -119,19 +131,20 @@ public partial class App : Application
             "failed" => "没有检测到足够音量，请检查麦克风并重试。",
             "failed-short" => "录音太短，请按住快捷键多说一会儿。",
             "failed-long" => "无法将识别结果发送到当前应用。文本已复制到剪贴板，请返回输入框后手动粘贴。",
+            "failed-rejected" => "识别请求被拒绝，请检查服务器地址和模型配置。",
             "processing" => "正在把语音转换为文字…",
             "completed" => "文字已输入到当前应用",
             _ => "静态布局检查"
         };
-        services.Overlay.Update(new(++layoutSession, state, previewMessage, value == "auto-completed" ? "交互检查" : "布局检查", true,
-            new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value == "tray",
+        services.Overlay.UpdatePreview(new(++layoutSession, state, previewMessage, value is "auto-completed" or "release" or "resume" ? "交互检查" : "布局检查", true,
+            new(VoxType.Infrastructure.Windows.NativeWindow.GetForegroundWindow(), 0, 0, 0, null), value is "tray" or "tray-preview" or "menu-completed",
             PartialText: value switch
             {
-                "preview" => "测试，测试。",
+                "preview" or "tray-preview" => "测试，测试。",
                 "preview-long" => "这是一段很长的实时转写内容，用来检查浮窗在连续说话时仍然保持紧凑，不会突然拉长，也不会把文字挤到下一行。",
                 _ => null
-            }));
-        if (value == "voice") services.Overlay.PreviewAudioLevels();
+            }), interactive: value is not ("auto-completed" or "release" or "resume"));
+        if (value is "voice" or "preview" or "preview-long" or "tray-preview") services.Overlay.PreviewAudioLevels();
         if (value == "motion") services.Overlay.PreviewAudioLevels(true);
         if (value == "menu-completed") _ = services.Overlay.CompletePreviewAfterDelayAsync();
 #endif
