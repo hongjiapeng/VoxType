@@ -29,10 +29,10 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 按住快捷键说话，R2T2 在浮窗里更新临时转录；松开后，完整录音会再次识别并把最终文字输入当前应用。
 
 <p align="center">
-  <img src="docs/screenshots/live-transcription.png" alt="VoxType 实时转录预览：聆听过程中，浮窗已显示识别文字" width="480" />
+  <img src="docs/screenshots/live-transcription.png" alt="VoxType 按住快捷键录音时，语音浮窗显示实时转录文字" width="320" />
 </p>
 
-临时文字可能随上下文修正。Whisper 本地和 OpenAI Compatible 在松开后识别；录音期间预览由 R2T2 提供。上图为静态界面演示，实际体验与验证范围见[验证与当前边界](#验证与当前边界)。
+临时文字可能随上下文修正。Whisper 本地和 OpenAI Compatible 在松开后识别；录音期间预览由 R2T2 提供。图中文字为示例，显示在应用实际使用的浮窗界面中。实际体验与验证范围见[验证与当前边界](#验证与当前边界)。
 
 ### 随手拖动，需要时常驻
 
