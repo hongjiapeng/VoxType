@@ -56,7 +56,7 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 
 ## 快速开始
 
-1. 获取 Windows x64 [发布包](docs/releases.md)：运行 `VoxType-0.1.1-win-x64-Setup.exe`，或完整解压便携 ZIP。
+1. 获取 Windows x64 [发布包](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.2)：运行 `VoxType-0.1.2-win-x64-Setup.exe`，或完整解压便携 ZIP。
 2. 启动 VoxType。便携版双击 `VoxType.App.exe` 后在托盘打开设置，也可运行 `VoxType.App.exe --settings`。
 3. 在「语音识别」中选一个服务。首次使用推荐 **Whisper 本地 → 下载模型 → 使用此模型**，然后保存设置。
 4. 聚焦目标应用输入框，按住 **Ctrl + Shift + Space** 说话，松开后等待文字输入。
@@ -66,7 +66,7 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 
 ## 选择识别服务
 
-下述共享类库本机模式与独立服务器包属于待发布的源码变更，公开 v0.1.1 仍包含服务。
+本机引擎在回环地址运行 llama-server。要连接其他设备，请部署独立的 R2T2 Server 包。
 
 | 服务 | 适合 | 配置 |
 |---|---|---|
@@ -161,7 +161,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args 
 构建安装包与便携 ZIP（额外需要 Inno Setup 6 和 PowerShell 7）：
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.1.1
+./scripts/build-release.ps1 -Version 0.1.2
 ```
 
 脚本执行 Release 测试、发布自包含的 x64 应用、检查必要文件，并生成安装包、ZIP 和 SHA-256 清单。详见[发布说明](docs/releases.md)。

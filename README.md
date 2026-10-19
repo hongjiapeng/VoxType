@@ -54,7 +54,7 @@ Drag the handle, waveform, or status text. VoxType remembers the position and tr
 
 ## Quick start
 
-1. Download the Windows x64 installer or portable ZIP from [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.1).
+1. Download the Windows x64 installer or portable ZIP from [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.2).
 2. Install VoxType, or extract the **entire** ZIP and run `VoxType.App.exe`. Open settings from the tray, or run `VoxType.App.exe --settings`.
 3. Choose a speech engine under **Speech recognition (语音识别)**. For offline use, select Whisper, download a model, choose **Use this model (使用此模型)**, and save.
 4. Focus your target text field, hold **Ctrl + Shift + Space**, speak, and release.
@@ -64,7 +64,7 @@ The installer runs per user under `%LOCALAPPDATA%\Programs\VoxType` without admi
 
 ## Choose your speech engine
 
-The shared-library local mode and separate server package below are source changes for the next release. Published v0.1.1 still bundles the server.
+The local engine runs llama-server on loopback. To connect other devices, deploy the separate R2T2 Server package.
 
 | Engine | Best for | Setup |
 |---|---|---|
@@ -159,7 +159,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args 
 Build the installer and portable ZIP with PowerShell 7 and Inno Setup 6:
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.1.1
+./scripts/build-release.ps1 -Version 0.1.2
 ```
 
 The script runs Release tests, publishes the self-contained x64 app, verifies required content, and generates an installer, ZIP, build information, and SHA-256 manifest. See the [release guide (Chinese)](docs/releases.md).

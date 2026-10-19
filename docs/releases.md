@@ -1,12 +1,12 @@
 # Windows 发布包
 
-已公开版本为 **0.1.1（预览）**，附件维持原发布内容。下面描述当前源码的后续构建方式，尚未发布：桌面包移除 HTTP 服务，新增独立服务器 ZIP。本地输出在 `dist/<版本>/`，不纳入 Git；公开发布内容以 [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases) 为准。
+最新版本为 **0.1.2（预览）**。桌面包使用共享 R2T2 核心库运行本机引擎，独立服务器 ZIP 继续提供 HTTP 服务。本地输出在 `dist/<版本>/`，不纳入 Git；公开发布内容以 [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases) 为准。
 
 | 文件 | 用途 |
 |---|---|
-| `VoxType-0.1.1-win-x64-Setup.exe` | 当前用户安装，无需管理员权限；可选桌面快捷方式 |
-| `VoxType-0.1.1-win-x64-Portable.zip` | 完整解压到本地目录后运行 `VoxType.App.exe` |
-| `VoxType-R2T2-Server-<版本>-win-x64.zip` | 可选的自包含 HTTP 服务与部署脚本，普通本机用户无需下载 |
+| `VoxType-0.1.2-win-x64-Setup.exe` | 当前用户安装，无需管理员权限；可选桌面快捷方式 |
+| `VoxType-0.1.2-win-x64-Portable.zip` | 完整解压到本地目录后运行 `VoxType.App.exe` |
+| `VoxType-R2T2-Server-0.1.2-win-x64.zip` | 可选的自包含 HTTP 服务与部署脚本，普通本机用户无需下载 |
 | `SHA256SUMS.txt` | 核对安装包、两个 ZIP 和构建信息的 SHA-256 |
 | `build-info.json` | 构建时的源提交、工作区状态和 Release 测试计数 |
 
@@ -35,9 +35,9 @@ Whisper 仍要求 CPU 支持 AVX / AVX2 / FMA / F16C 和 x64 Visual C++ 2022 Red
 ## 检查与交付
 
 ```powershell
-Get-FileHash ./dist/0.1.1/VoxType-0.1.1-win-x64-Setup.exe -Algorithm SHA256
-Get-FileHash ./dist/0.1.1/VoxType-0.1.1-win-x64-Portable.zip -Algorithm SHA256
-Get-Content ./dist/0.1.1/SHA256SUMS.txt
+Get-FileHash ./dist/0.1.2/VoxType-0.1.2-win-x64-Setup.exe -Algorithm SHA256
+Get-FileHash ./dist/0.1.2/VoxType-0.1.2-win-x64-Portable.zip -Algorithm SHA256
+Get-Content ./dist/0.1.2/SHA256SUMS.txt
 ```
 
 交付前确认解压后的应用能打开设置、从托盘退出，并检查安装／卸载流程；真实语音输入按[手工验收表](manual-acceptance.md)检查。开发机器运行成功不能代替无开发环境的干净机器验收。
