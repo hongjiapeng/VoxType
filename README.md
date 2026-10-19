@@ -27,7 +27,7 @@ It lives in the system tray and needs no VoxType account. Run Whisper offline, c
 With R2T2, the floating overlay shows a draft transcript while you hold the shortcut. Release it to transcribe the full recording and insert the final text into your app.
 
 <p align="center">
-  <img src="docs/screenshots/live-transcription.png" alt="VoxType's floating bar showing a live transcript during shortcut recording" width="320" />
+  <img src="docs/screenshots/live-transcription-dark.png" alt="VoxType's dark floating bar showing a live transcript during shortcut recording" width="320" />
 </p>
 
 Draft words can change as more context arrives. Live preview is available with R2T2; Whisper and OpenAI Compatible transcribe after you release the shortcut. The sample text is shown in the app's actual overlay. See [verification and current limits](#verification-and-current-limits) for the scope of testing.
@@ -37,7 +37,7 @@ Draft words can change as more context arrives. Live preview is available with R
 Drag the handle, waveform, or status text. VoxType remembers the position and tries to avoid the input area. Enable **Keep on desktop** to retain a small microphone entry between sessions; it records only after you click it.
 
 <p align="center">
-  <img src="docs/screenshots/idle-entry.png" alt="Compact idle microphone entry with a drag handle and options menu" width="120" />
+  <img src="docs/screenshots/idle-entry-dark.png" alt="Dark idle microphone entry with a drag handle and options menu" width="120" />
 </p>
 
 ## What it does
