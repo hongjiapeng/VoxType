@@ -30,13 +30,22 @@ if (-not (Test-Path -LiteralPath $LlamaServerPath -PathType Leaf)) { throw "找�
 foreach ($binding in @(@{ Address = $ip; Port = $Port }, @{ Address = [Net.IPAddress]::Loopback; Port = $LlamaPort })) {
     Assert-R2T2PortAvailable -Address $binding.Address -Port $binding.Port
 }
-$publishDirectory = Join-Path $dataRoot 'adapter'
-$buildDirectory = Join-Path $dataRoot 'build'
-$intermediateDirectory = (Join-Path $buildDirectory 'obj') + [IO.Path]::DirectorySeparatorChar
-$outputDirectory = (Join-Path $buildDirectory 'bin') + [IO.Path]::DirectorySeparatorChar
-& dotnet publish (Join-Path $repoRoot 'services/R2T2.Server/R2T2.Server.csproj') -c Release -p:Platform=x64 --no-self-contained -o $publishDirectory `
-    "-p:BaseIntermediateOutputPath=$intermediateDirectory" "-p:MSBuildProjectExtensionsPath=$intermediateDirectory" "-p:BaseOutputPath=$outputDirectory" --nologo
-if ($LASTEXITCODE -ne 0) { throw '适配服务构建失败。' }
+$adapterExecutable = Join-Path $repoRoot 'R2T2.Server.exe'
+$adapterArguments = @()
+if (-not (Test-Path -LiteralPath $adapterExecutable -PathType Leaf)) {
+    # Source checkout only. Installed releases ship a self-contained executable.
+    $project = Join-Path $repoRoot 'services/R2T2.Server/R2T2.Server.csproj'
+    if (-not (Test-Path -LiteralPath $project -PathType Leaf)) { throw '安装缺少 R2T2 服务，请重新安装完整的 VoxType 安装包。' }
+    $publishDirectory = Join-Path $dataRoot 'adapter'
+    $buildDirectory = Join-Path $dataRoot 'build'
+    $intermediateDirectory = (Join-Path $buildDirectory 'obj') + [IO.Path]::DirectorySeparatorChar
+    $outputDirectory = (Join-Path $buildDirectory 'bin') + [IO.Path]::DirectorySeparatorChar
+    & dotnet publish $project -c Release -p:Platform=x64 --no-self-contained -o $publishDirectory `
+        "-p:BaseIntermediateOutputPath=$intermediateDirectory" "-p:MSBuildProjectExtensionsPath=$intermediateDirectory" "-p:BaseOutputPath=$outputDirectory" --nologo
+    if ($LASTEXITCODE -ne 0) { throw '适配服务构建失败。' }
+    $adapterExecutable = 'dotnet'
+    $adapterArguments = @((Join-Path $publishDirectory 'R2T2.Server.dll'))
+}
 $llamaArguments = @('-m', (Join-Path $dataRoot "models/$($manifest.models[0].name)"), '--mmproj', (Join-Path $dataRoot "models/$($manifest.models[1].name)"),
     '--host', '127.0.0.1', '--port', "$LlamaPort", '--alias', 'r2t2-q4', '-c', '8192', '-np', '1', '-t', "$Threads", '--temp', '0',
     '--jinja', '--chat-template-file', (Join-Path $repoRoot 'services/r2t2-chat-template.jinja'), '--log-disable')
@@ -64,7 +73,7 @@ $client.Timeout = [TimeSpan]::FromSeconds(2)
 try {
     $llama = Start-OwnedProcess $LlamaServerPath $llamaArguments
     $hostLiteral = if ($ip.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetworkV6) { "[$ip]" } else { "$ip" }
-    $adapter = Start-OwnedProcess 'dotnet' @((Join-Path $publishDirectory 'R2T2.Server.dll')) @{
+    $adapter = Start-OwnedProcess $adapterExecutable $adapterArguments @{
         'R2T2__ListenUrl' = "http://${hostLiteral}:$Port"; 'R2T2__UpstreamUrl' = "http://127.0.0.1:$LlamaPort"
         'R2T2__ApiKey' = [string]$apiKey; 'R2T2__UpstreamApiKey' = ''; 'R2T2__Model' = 'r2t2-q4'; 'R2T2__TimeoutSeconds' = '115'
         'Logging__LogLevel__Default' = 'Warning'; 'Logging__LogLevel__Microsoft.AspNetCore' = 'Warning'

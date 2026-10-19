@@ -3,6 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RootNamespace>VoxType.R2T2.Server</RootNamespace>
+    <!-- This project must also build outside the repository (developer scripts). -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <!-- The Windows launcher places intermediate output outside the source tree. -->

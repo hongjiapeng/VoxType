@@ -19,6 +19,8 @@ public sealed class AppServices : IAsyncDisposable
     private GlobalHotkeyService? hotkeys;
     private readonly HttpClient transcriptionClient = OpenAiCompatibleProvider.CreateClient();
     private readonly HttpClient modelClient = LocalModelManager.CreateClient();
+    private readonly HttpClient r2t2Downloads = new() { Timeout = TimeSpan.FromMinutes(30) };
+    private readonly R2T2LocalService r2t2;
     private NativeClipboardHost? clipboardHost;
     private ITextInjectionService? injection;
     private readonly LocalWhisperService localWhisper = new(new WhisperBackend());
@@ -35,13 +37,15 @@ public sealed class AppServices : IAsyncDisposable
         VoxType.Infrastructure.Settings.OverlayPreferencesStore? overlayStore = null, OverlayPreferences? overlayPreferences = null)
     {
         managedModelPath ??= WhisperModelPath.Default;
+        r2t2 = new(AppContext.BaseDirectory, r2t2Downloads);
         Settings = new(loaded.Settings);
         var models = new ModelManagerViewModel(
             new LocalModelManager(modelClient, managedModelPath, localWhisper.DeleteModelAsync),
             path => SettingsViewModel!.UseInstalledModelAsync(path), Dispatch);
         SettingsViewModel = new(Settings, async updated => { await store.SaveAsync(updated); Settings.Publish(updated); })
         { DefaultModelPath = managedModelPath, DefaultR2T2DataDirectory = R2T2LocalLauncher.GetDefaultDataDirectory(AppContext.BaseDirectory), Models = models,
-            RunLocalR2T2Async = (backend, directory, prepare) => R2T2LocalLauncher.LaunchAsync(AppContext.BaseDirectory, backend, directory, prepare) };
+            RunLocalR2T2Async = r2t2.RunAsync, StopR2T2ServiceAsync = r2t2.StopAsync };
+        r2t2.StatusChanged += (message, running) => Dispatch(() => SettingsViewModel.ReportR2T2Status(message, running));
         SettingsWindow = new(SettingsViewModel);
         Overlay = new(overlayPreferences);
         SettingsViewModel.OverlayPinned = overlayPreferences?.Pinned == true;
@@ -184,6 +188,7 @@ public sealed class AppServices : IAsyncDisposable
         hotkeys?.Dispose();
         try
         {
+            await r2t2.DisposeAsync();
             await overlaySave;
             await SettingsViewModel.Models.DisposeAsync();
             try
@@ -198,6 +203,7 @@ public sealed class AppServices : IAsyncDisposable
             focus?.Dispose();
             transcriptionClient.Dispose();
             modelClient.Dispose();
+            r2t2Downloads.Dispose();
             clipboardHost?.Dispose();
             Tray.Dispose();
             Overlay.Dispose();

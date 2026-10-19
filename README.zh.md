@@ -56,7 +56,7 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 
 ## 快速开始
 
-1. 获取 Windows x64 [发布包](docs/releases.md)：运行 `VoxType-0.1.0-win-x64-Setup.exe`，或完整解压便携 ZIP。
+1. 获取 Windows x64 [发布包](docs/releases.md)：运行 `VoxType-0.1.1-win-x64-Setup.exe`，或完整解压便携 ZIP。
 2. 启动 VoxType。便携版双击 `VoxType.App.exe` 后在托盘打开设置，也可运行 `VoxType.App.exe --settings`。
 3. 在「语音识别」中选一个服务。首次使用推荐 **Whisper 本地 → 下载模型 → 使用此模型**，然后保存设置。
 4. 聚焦目标应用输入框，按住 **Ctrl + Shift + Space** 说话，松开后等待文字输入。
@@ -88,7 +88,7 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 | 桌面应用 | 发布包内含 .NET 10 与 Windows App SDK，无需单独安装这两项运行时 |
 | Whisper 本地 | CPU 支持 AVX、AVX2、FMA、F16C；需要 x64 Visual C++ 2022 Redistributable |
 | Vulkan | 额外需要兼容显卡和驱动；不支持时手动改为 CPU |
-| 本机 R2T2 准备／启动 | 额外需要 PowerShell 7 与 .NET 10 SDK，及模型下载空间 |
+| 本机 R2T2 准备／启动 | 模型下载空间与数 GiB 可用内存；修复后的构建随包包含服务，无需 PowerShell 或 .NET SDK |
 
 当前提供未签名的预览包，Windows 可能提示发布者未验证。应用不会安装信任证书或修改系统安全策略。
 
@@ -111,7 +111,7 @@ VoxType 是 Windows 11 上的全局语音输入工具。先把光标放进编辑
 <details>
 <summary><strong>R2T2 准备或启动失败</strong></summary>
 
-确认 PowerShell 7、.NET 10 SDK 和两个模型已准备好。默认端口为 8272 / 8273；若提示占用，先关闭旧服务窗口，再启动。准备资源会复用已校验文件。详见 [R2T2 指南](docs/r2t2-server.md)。
+先点击“准备本机资源”，等待校验完成后启动；进度和错误显示在设置页，可停止或取消。默认端口为 8272 / 8273；升级前请在旧服务窗口按 Ctrl+C。Vulkan 启动失败时可停止后选择 cpu 重试。准备资源会复用已校验文件。原 v0.1.0 包存在现场编译和编译配置缺失问题，需使用修复后的完整构建。详见 [R2T2 指南](docs/r2t2-server.md)。
 
 </details>
 
@@ -158,7 +158,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args 
 构建安装包与便携 ZIP（额外需要 Inno Setup 6 和 PowerShell 7）：
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.1.0
+./scripts/build-release.ps1 -Version 0.1.1
 ```
 
 脚本执行 Release 测试、发布自包含的 x64 应用、检查必要文件，并生成安装包、ZIP 和 SHA-256 清单。详见[发布说明](docs/releases.md)。

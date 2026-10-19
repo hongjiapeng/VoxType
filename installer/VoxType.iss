@@ -1,7 +1,12 @@
-#define MyAppName "VoxType"
+#ifndef MyAppName
+  #define MyAppName "VoxType"
+#endif
+#ifndef MyAppId
+  #define MyAppId "{{28F435F3-A41D-4C3F-B5EB-077D060BD364}"
+#endif
 #define MyAppExeName "VoxType.App.exe"
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 #ifndef SourceDir
   #error SourceDir must point to the verified portable publish directory.
@@ -14,7 +19,7 @@
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Setup]
-AppId={{28F435F3-A41D-4C3F-B5EB-077D060BD364}
+AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher=VoxType contributors
@@ -42,6 +47,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+; Remove only the obsolete service source shipped by v0.1.0. Models live elsewhere.
+Type: files; Name: "{app}\services\R2T2.Server\*.cs"
+Type: files; Name: "{app}\services\R2T2.Server\R2T2.Server.csproj"
 
 [Icons]
 Name: "{group}\VoxType"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--settings"; WorkingDir: "{app}"

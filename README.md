@@ -54,7 +54,7 @@ Drag the handle, waveform, or status text. VoxType remembers the position and tr
 
 ## Quick start
 
-1. Download the Windows x64 installer or portable ZIP from [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.0).
+1. Download the Windows x64 installer or portable ZIP from [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases/tag/v0.1.1).
 2. Install VoxType, or extract the **entire** ZIP and run `VoxType.App.exe`. Open settings from the tray, or run `VoxType.App.exe --settings`.
 3. Choose a speech engine under **Speech recognition (语音识别)**. For offline use, select Whisper, download a model, choose **Use this model (使用此模型)**, and save.
 4. Focus your target text field, hold **Ctrl + Shift + Space**, speak, and release.
@@ -86,7 +86,7 @@ Detailed model, device, and session behavior is documented in the [usage guide (
 | Desktop runtimes | .NET 10 and Windows App SDK are included in the release packages |
 | Local Whisper | CPU support for AVX, AVX2, FMA, and F16C; x64 Visual C++ 2022 Redistributable |
 | Vulkan | A compatible GPU and driver; switch to CPU if unsupported |
-| Local R2T2 preparation/startup | PowerShell 7, .NET 10 SDK, and space for the downloaded models |
+| Local R2T2 preparation/startup | Model storage and several GiB of available memory; fixed builds bundle the service and require no PowerShell or .NET SDK |
 
 Preview packages are unsigned, so Windows may show an unverified publisher. VoxType does not install trust certificates or change Windows security policy.
 
@@ -109,7 +109,7 @@ Check Windows microphone permissions and the default recording device. Recording
 <details>
 <summary><strong>R2T2 preparation or startup failed</strong></summary>
 
-Check PowerShell 7, the .NET 10 SDK, and both model files. Default ports are 8272 / 8273; close the old service if a port is occupied. Resource preparation reuses files that pass verification. See the [R2T2 guide (Chinese)](docs/r2t2-server.md).
+Prepare resources in settings, then start after verification completes. Settings show progress and errors and allow stopping/cancellation. Default ports are 8272 / 8273; stop old terminal services with Ctrl+C before upgrading. If Vulkan fails, stop and select cpu before retrying. Verified resources are reused. The original v0.1.0 package compiled the service at startup and omitted build settings; use a complete fixed build. See the [R2T2 guide (Chinese)](docs/r2t2-server.md).
 
 </details>
 
@@ -156,7 +156,7 @@ winapp run src/VoxType.App/VoxType.App.csproj --arch x64 -p Platform=x64 --args 
 Build the installer and portable ZIP with PowerShell 7 and Inno Setup 6:
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.1.0
+./scripts/build-release.ps1 -Version 0.1.1
 ```
 
 The script runs Release tests, publishes the self-contained x64 app, verifies required content, and generates an installer, ZIP, build information, and SHA-256 manifest. See the [release guide (Chinese)](docs/releases.md).

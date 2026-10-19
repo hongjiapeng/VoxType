@@ -56,7 +56,7 @@ public sealed class LocalInferenceBackendSettingsTests
             SelectedProvider = VoxType.Core.Transcription.ProviderDefinition.All.Single(p => p.Id == "r2t2-server"),
             R2T2InferenceBackend = "vulkan",
             R2T2DataDirectory = @"D:\R2T2 Models",
-            RunLocalR2T2Async = (backend, directory, prepare) =>
+            RunLocalR2T2Async = (backend, directory, prepare, progress, token) =>
             {
                 launchedBackend = backend;
                 launchedDirectory = directory;
@@ -75,5 +75,78 @@ public sealed class LocalInferenceBackendSettingsTests
         Assert.AreEqual(@"D:\R2T2 Models", launchedDirectory);
         Assert.IsNotNull(preparing);
         Assert.IsFalse(preparing.Value);
+        Assert.IsTrue(viewModel.IsR2T2Running);
+        Assert.IsFalse(viewModel.LaunchLocalR2T2Command.CanExecute(null));
+        Assert.IsFalse(viewModel.PrepareLocalR2T2Command.CanExecute(null));
+        Assert.IsTrue(viewModel.StopLocalR2T2Command.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task R2T2Preparation_CanCancelAndCannotLaunchConcurrently()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var model = new MainPageViewModel(new(new()), _ => Task.CompletedTask)
+        {
+            RunLocalR2T2Async = async (_, _, _, _, token) => { started.SetResult(); await Task.Delay(Timeout.Infinite, token); }
+        };
+        var preparing = model.PrepareLocalR2T2Command.ExecuteAsync(null);
+        await started.Task;
+        Assert.IsTrue(model.IsR2T2Busy);
+        Assert.IsFalse(model.LaunchLocalR2T2Command.CanExecute(null));
+        Assert.IsFalse(model.PrepareLocalR2T2Command.CanExecute(null));
+        await model.StopLocalR2T2Command.ExecuteAsync(null);
+        await preparing;
+        Assert.IsFalse(model.IsR2T2Busy);
+        Assert.IsFalse(model.IsR2T2Running);
+        Assert.Contains("已取消", model.R2T2Status);
+        Assert.IsTrue(model.LaunchLocalR2T2Command.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task R2T2LaunchFailure_ShowsErrorAndAllowsRetry()
+    {
+        var model = new MainPageViewModel(new(new()), _ => Task.CompletedTask)
+        {
+            RunLocalR2T2Async = (_, _, _, _, _) => throw new IOException("安装缺少 R2T2 服务")
+        };
+        await model.LaunchLocalR2T2Command.ExecuteAsync(null);
+        Assert.AreEqual("安装缺少 R2T2 服务", model.R2T2Status);
+        Assert.IsFalse(model.IsR2T2Running);
+        Assert.IsFalse(model.IsR2T2Busy);
+        Assert.IsTrue(model.LaunchLocalR2T2Command.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task R2T2Stop_ReleasesRunningStateAndAllowsBackendChange()
+    {
+        int stopped = 0;
+        var model = new MainPageViewModel(new(new()), _ => Task.CompletedTask)
+        {
+            RunLocalR2T2Async = (_, _, _, _, _) => Task.CompletedTask,
+            StopR2T2ServiceAsync = () => { stopped++; return Task.CompletedTask; }
+        };
+        await model.LaunchLocalR2T2Command.ExecuteAsync(null);
+        await model.StopLocalR2T2Command.ExecuteAsync(null);
+        Assert.AreEqual(1, stopped);
+        Assert.IsFalse(model.IsR2T2Running);
+        Assert.IsTrue(model.PrepareLocalR2T2Command.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task R2T2Launch_DoesNotOverwriteFailureReceivedBeforeCompletion()
+    {
+        MainPageViewModel model = null!;
+        model = new(new(new()), _ => Task.CompletedTask)
+        {
+            RunLocalR2T2Async = (_, _, _, _, _) =>
+            {
+                model.ReportR2T2Status("本机服务已退出。", false);
+                return Task.CompletedTask;
+            }
+        };
+        await model.LaunchLocalR2T2Command.ExecuteAsync(null);
+        Assert.IsFalse(model.IsR2T2Running);
+        Assert.AreEqual("本机服务已退出。", model.R2T2Status);
+        Assert.IsTrue(model.LaunchLocalR2T2Command.CanExecute(null));
     }
 }

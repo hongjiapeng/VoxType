@@ -50,7 +50,26 @@ public partial class MainPageViewModel : ObservableObject
     public string DefaultModelPath { get; init; } = "";
     public string DefaultR2T2DataDirectory { get; init; } = "";
     public ModelManagerViewModel Models { get; init; } = null!;
-    public Func<string, string, bool, Task>? RunLocalR2T2Async { get; init; }
+    public Func<string, string, bool, IProgress<string>, CancellationToken, Task>? RunLocalR2T2Async { get; init; }
+    public Func<Task>? StopR2T2ServiceAsync { get; init; }
+    private CancellationTokenSource? r2t2Operation;
+    private int r2t2StatusRevision;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRunR2T2))]
+    [NotifyCanExecuteChangedFor(nameof(PrepareLocalR2T2Command))]
+    [NotifyCanExecuteChangedFor(nameof(LaunchLocalR2T2Command))]
+    [NotifyCanExecuteChangedFor(nameof(StopLocalR2T2Command))]
+    public partial bool IsR2T2Busy { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRunR2T2))]
+    [NotifyCanExecuteChangedFor(nameof(PrepareLocalR2T2Command))]
+    [NotifyCanExecuteChangedFor(nameof(LaunchLocalR2T2Command))]
+    [NotifyCanExecuteChangedFor(nameof(StopLocalR2T2Command))]
+    public partial bool IsR2T2Running { get; set; }
+    [ObservableProperty] public partial string R2T2Status { get; set; } = "首次使用请准备资源，约需下载 1.63 GiB 模型。";
+    public bool CanRunR2T2 => !IsR2T2Busy && !IsR2T2Running;
+    public bool CanStopR2T2 => r2t2Operation is not null || IsR2T2Running;
+    public void ReportR2T2Status(string message, bool running) { r2t2StatusRevision++; R2T2Status = message; IsR2T2Running = running; }
     public bool CanCopy => LatestText.Length > 0;
     public string UsageInstructions => "1. 聚焦外部输入框。\n2. 按住 " + settings.Current.Hotkey.DisplayName + " 说话，松开后识别并输入。"
         + (settings.Current.ProviderId == "r2t2-server" && settings.Current.R2T2StreamOutput ? "\nR2T2 实时预览开启：说话时悬浮层会更新临时文字，松开后校正并输入。" : "")
@@ -124,34 +143,64 @@ public partial class MainPageViewModel : ObservableObject
         return false;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunR2T2))]
     private async Task PrepareLocalR2T2Async()
     {
         await RunR2T2Async(prepare: true);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunR2T2))]
     private async Task LaunchLocalR2T2Async()
     {
+        if (IsR2T2Busy || IsR2T2Running) return;
+        // Guard the save await too, so preparation cannot race with launch.
+        IsR2T2Busy = true;
         BaseUrl = "http://127.0.0.1:8272/v1";
         Model = "r2t2-q4";
         ApiKey = "";
-        if (!await SaveCurrentAsync()) return;
+        if (!await SaveCurrentAsync()) { IsR2T2Busy = false; return; }
+        IsR2T2Busy = false;
         await RunR2T2Async(prepare: false);
     }
 
     private async Task RunR2T2Async(bool prepare)
     {
+        if (IsR2T2Busy || IsR2T2Running) return;
+        using var cancellation = new CancellationTokenSource();
+        r2t2Operation = cancellation;
+        IsR2T2Busy = true;
+        int statusRevision = r2t2StatusRevision;
+        R2T2Status = prepare ? "正在准备本机资源…" : "正在启动本机服务…";
+        var progress = new Progress<string>(text => { if (ReferenceEquals(r2t2Operation, cancellation)) R2T2Status = text; });
         try
         {
             if (RunLocalR2T2Async is null) throw new InvalidOperationException();
-            await RunLocalR2T2Async(R2T2InferenceBackend, R2T2DataDirectory.Trim(), prepare);
-            Message = prepare
-                ? "已打开 R2T2 资源准备窗口。完成下载和校验后，再启动本机服务。"
-                : "已打开 R2T2 本机服务窗口。等待模型加载完成；停止服务请在该窗口按 Ctrl+C。";
+            await RunLocalR2T2Async(R2T2InferenceBackend, R2T2DataDirectory.Trim(), prepare, progress, cancellation.Token);
+            // A process may fail just after becoming ready, before this continuation runs.
+            // Keep the latest service notification instead of overwriting it with success.
+            if (statusRevision == r2t2StatusRevision)
+            {
+                if (!prepare) IsR2T2Running = true;
+                R2T2Status = prepare ? "本机资源已准备完成，可以启动服务。" : "本机服务已就绪，可以在外部输入框按住快捷键说话。";
+            }
         }
-        catch (ArgumentException ex) { Message = ex.Message; }
-        catch { Message = "无法启动 PowerShell 7。请安装 pwsh，并检查本机 R2T2 脚本与数据目录。"; }
+        catch (OperationCanceledException) { R2T2Status = "已取消，已下载并校验完成的资源会保留。"; }
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException) { R2T2Status = ex.Message; }
+        catch (HttpRequestException) { R2T2Status = "资源下载失败，请检查网络连接后重试。已校验完成的资源会保留。"; }
+        catch { R2T2Status = "本机服务操作失败，请检查数据目录和可用空间后重试。"; }
+        finally { r2t2Operation = null; IsR2T2Busy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopR2T2))]
+    private async Task StopLocalR2T2Async()
+    {
+        if (r2t2Operation is not null) { await r2t2Operation.CancelAsync(); return; }
+        try
+        {
+            if (StopR2T2ServiceAsync is not null) await StopR2T2ServiceAsync();
+            ReportR2T2Status("本机服务已停止。", false);
+        }
+        catch { R2T2Status = "停止服务失败，请退出 VoxType 后重试。"; }
     }
 
     [RelayCommand] private void Copy() => CopyRequested?.Invoke(this, EventArgs.Empty);

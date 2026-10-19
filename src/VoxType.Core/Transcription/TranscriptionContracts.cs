@@ -20,7 +20,7 @@ public sealed record ProviderDefinition(string Id, string DisplayName, bool IsLo
     public static IReadOnlyList<ProviderDefinition> All { get; } =
     [
         new("whisper-local", "Whisper 本地", true, "本地运行 · 音频不会上传到服务器", [ProviderField.ModelPath, ProviderField.Language]),
-        new("r2t2-server", "R2T2 本机／局域网", false, "音频发送到你配置的 R2T2 设备 · CPU/Vulkan 由服务端启动脚本选择 · 本机或私有 IP 可使用 HTTP，局域网 HTTP 为明文传输", [ProviderField.BaseUrl, ProviderField.ApiKey, ProviderField.Model, ProviderField.Language]),
+        new("r2t2-server", "R2T2 本机／局域网", false, "音频发送到你配置的 R2T2 设备 · 本机可在下方准备资源并选择 CPU/Vulkan · 本机或私有 IP 可使用 HTTP，局域网 HTTP 为明文传输", [ProviderField.BaseUrl, ProviderField.ApiKey, ProviderField.Model, ProviderField.Language]),
         new("openai-compatible", "OpenAI Compatible", false, "在线识别 · 音频上传至你配置的服务器", [ProviderField.BaseUrl, ProviderField.ApiKey, ProviderField.Model, ProviderField.Language])
     ];
 }

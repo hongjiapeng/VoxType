@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 [CmdletBinding()]
 param(
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.1.0'
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.1.1'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -39,8 +39,13 @@ try {
 
     & dotnet publish src/VoxType.App/VoxType.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable "-p:Version=$Version" -o $publish
     if ($LASTEXITCODE -ne 0) { throw 'Portable publish failed.' }
-    foreach ($file in @('VoxType.App.exe','VoxType.App.dll','VoxType.App.runtimeconfig.json','coreclr.dll','Microsoft.UI.Xaml.dll','Assets/AppIcon.ico','ThirdPartyNotices.md','scripts/start-r2t2.ps1','services/R2T2.Server/R2T2.Server.csproj','runtimes/win-x64/whisper.dll','runtimes/vulkan/win-x64/whisper.dll')) {
+    foreach ($file in @('VoxType.App.exe','VoxType.App.dll','VoxType.App.runtimeconfig.json','coreclr.dll','Microsoft.UI.Xaml.dll','Assets/AppIcon.ico','ThirdPartyNotices.md','scripts/start-r2t2.ps1','R2T2.Server.exe','R2T2.Server.runtimeconfig.json','Microsoft.AspNetCore.Server.Kestrel.Core.dll','runtimes/win-x64/whisper.dll','runtimes/vulkan/win-x64/whisper.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $publish $file) -PathType Leaf)) { throw "Incomplete release: $file" }
+    }
+    if (Test-Path -LiteralPath (Join-Path $publish 'services/R2T2.Server/coreclr.dll')) { throw 'R2T2 runtime was duplicated instead of merged.' }
+    $adapterRuntime = Get-Content -LiteralPath (Join-Path $publish 'R2T2.Server.runtimeconfig.json') -Raw | ConvertFrom-Json
+    if ($adapterRuntime.runtimeOptions.PSObject.Properties.Name -contains 'frameworks' -or $adapterRuntime.runtimeOptions.PSObject.Properties.Name -contains 'framework') {
+        throw 'R2T2 adapter unexpectedly requires a shared .NET runtime.'
     }
     $runtime = Get-Content -LiteralPath (Join-Path $publish 'VoxType.App.runtimeconfig.json') -Raw | ConvertFrom-Json
     if ($runtime.runtimeOptions.PSObject.Properties.Name -contains 'frameworks' -or $runtime.runtimeOptions.PSObject.Properties.Name -contains 'framework') {

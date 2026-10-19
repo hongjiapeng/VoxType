@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../VoxType.Core/VoxType.Core.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../../services/R2T2.Server/ServerSentEvents.cs" Link="Transcription/ServerSentEvents.cs" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../scripts/r2t2-assets.json" LogicalName="VoxType.R2T2.Assets.json" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />

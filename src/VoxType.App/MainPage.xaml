@@ -69,14 +69,17 @@
                         <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasR2T2), Mode=OneWay}">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="本机 R2T2 服务" Style="{StaticResource SubtitleTextBlockStyle}" />
-                                <ComboBox Header="本机推理设备" ItemsSource="{x:Bind ViewModel.LocalInferenceBackends, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.R2T2InferenceBackend, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="R2T2InferenceBackend" />
-                                <TextBox Header="模型与运行时目录（留空使用默认目录）" Text="{x:Bind ViewModel.R2T2DataDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="可填写其他磁盘上的完整路径，模型约 1.63 GiB" AutomationProperties.AutomationId="R2T2DataDirectory" />
+                                <ComboBox Header="本机推理设备" ItemsSource="{x:Bind ViewModel.LocalInferenceBackends, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.R2T2InferenceBackend, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanRunR2T2, Mode=OneWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="R2T2InferenceBackend" />
+                                <TextBox Header="模型与运行时目录（留空使用默认目录）" Text="{x:Bind ViewModel.R2T2DataDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{x:Bind ViewModel.CanRunR2T2, Mode=OneWay}" PlaceholderText="可填写其他磁盘上的完整路径，模型约 1.63 GiB" AutomationProperties.AutomationId="R2T2DataDirectory" />
                                 <TextBlock Text="{x:Bind ViewModel.DefaultR2T2DataDirectory, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DefaultR2T2DataDirectory" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="准备本机资源" Command="{x:Bind ViewModel.PrepareLocalR2T2Command}" AutomationProperties.AutomationId="PrepareLocalR2T2" />
                                     <Button Content="启动本机服务" Command="{x:Bind ViewModel.LaunchLocalR2T2Command}" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="LaunchLocalR2T2" />
+                                    <Button Content="停止 / 取消" Command="{x:Bind ViewModel.StopLocalR2T2Command}" AutomationProperties.AutomationId="StopLocalR2T2" />
                                 </StackPanel>
-                                <TextBlock Text="启动会保存本机地址和所选设备，并打开 PowerShell 7 服务窗口；就绪后在外部输入框开始录音。切换设备时先在该窗口按 Ctrl+C 停止旧服务，再启动新服务。局域网另一台电脑的设备需在那台电脑上选择。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <ProgressBar IsIndeterminate="True" Visibility="{x:Bind local:MainPage.Visible(ViewModel.IsR2T2Busy), Mode=OneWay}" AutomationProperties.Name="本机资源准备与服务启动进度" AutomationProperties.AutomationId="R2T2Progress" />
+                                <TextBlock Text="{x:Bind ViewModel.R2T2Status, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="R2T2Status" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock Text="资源只在点击准备时下载。服务在后台运行，显示就绪后即可录音；退出 VoxType 时自动停止。切换设备前请先停止服务。局域网另一台电脑的设备需在那台电脑上选择。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource Card}" Visibility="{x:Bind local:MainPage.Visible(ViewModel.HasModelPath), Mode=OneWay}">
