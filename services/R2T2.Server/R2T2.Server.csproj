@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/VoxType.R2T2.Core/VoxType.R2T2.Core.csproj" />
     <!-- The Windows launcher places intermediate output outside the source tree. -->
     <Compile Remove="obj/**/*.cs" />
   </ItemGroup>

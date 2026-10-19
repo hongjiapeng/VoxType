@@ -35,13 +35,11 @@ $adapterArguments = @()
 if (-not (Test-Path -LiteralPath $adapterExecutable -PathType Leaf)) {
     # Source checkout only. Installed releases ship a self-contained executable.
     $project = Join-Path $repoRoot 'services/R2T2.Server/R2T2.Server.csproj'
-    if (-not (Test-Path -LiteralPath $project -PathType Leaf)) { throw '安装缺少 R2T2 服务，请重新安装完整的 VoxType 安装包。' }
+    if (-not (Test-Path -LiteralPath $project -PathType Leaf)) { throw '缺少 R2T2 服务，请下载并完整解压独立的 VoxType-R2T2-Server 包。' }
     $publishDirectory = Join-Path $dataRoot 'adapter'
     $buildDirectory = Join-Path $dataRoot 'build'
-    $intermediateDirectory = (Join-Path $buildDirectory 'obj') + [IO.Path]::DirectorySeparatorChar
-    $outputDirectory = (Join-Path $buildDirectory 'bin') + [IO.Path]::DirectorySeparatorChar
     & dotnet publish $project -c Release -p:Platform=x64 --no-self-contained -o $publishDirectory `
-        "-p:BaseIntermediateOutputPath=$intermediateDirectory" "-p:MSBuildProjectExtensionsPath=$intermediateDirectory" "-p:BaseOutputPath=$outputDirectory" --nologo
+        --artifacts-path $buildDirectory --nologo
     if ($LASTEXITCODE -ne 0) { throw '适配服务构建失败。' }
     $adapterExecutable = 'dotnet'
     $adapterArguments = @((Join-Path $publishDirectory 'R2T2.Server.dll'))

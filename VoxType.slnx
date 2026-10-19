@@ -6,8 +6,10 @@
     <Project Path="src/VoxType.App/VoxType.App.csproj" />
     <Project Path="src/VoxType.Core/VoxType.Core.csproj" />
     <Project Path="src/VoxType.Infrastructure/VoxType.Infrastructure.csproj" />
+    <Project Path="src/VoxType.R2T2.Core/VoxType.R2T2.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/VoxType.R2T2.TestHost/VoxType.R2T2.TestHost.csproj" />
     <Project Path="tests/VoxType.Tests/VoxType.Tests.csproj">
       <Platform Project="x64" />
     </Project>

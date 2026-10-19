@@ -15,6 +15,7 @@ using VoxType.Core.Audio;
 using VoxType.Core.Settings;
 using VoxType.Infrastructure.Transcription;
 using VoxType.R2T2.Server;
+using VoxType.R2T2;
 
 namespace VoxType.Tests.R2T2;
 
@@ -215,7 +216,7 @@ public sealed class R2T2HttpContractTests
                 using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
                 var adapterUrl = $"http://127.0.0.1:{port}";
                 var info = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = AppContext.BaseDirectory };
-                foreach (var argument in new[] { "exec", "--runtimeconfig", Path.Combine(AppContext.BaseDirectory, "VoxType.Tests.runtimeconfig.json"), "--depsfile", Path.Combine(AppContext.BaseDirectory, "VoxType.Tests.deps.json"), typeof(LlamaTranscriber).Assembly.Location }) info.ArgumentList.Add(argument);
+                foreach (var argument in new[] { "exec", "--runtimeconfig", Path.Combine(AppContext.BaseDirectory, "VoxType.Tests.runtimeconfig.json"), "--depsfile", Path.Combine(AppContext.BaseDirectory, "VoxType.Tests.deps.json"), typeof(ServerOptions).Assembly.Location }) info.ArgumentList.Add(argument);
                 info.Environment["R2T2__ListenUrl"] = adapterUrl; info.Environment["R2T2__UpstreamUrl"] = upstreamUrl;
                 info.Environment["R2T2__ApiKey"] = "contract-key"; info.Environment["R2T2__UpstreamApiKey"] = "upstream-contract-key";
                 info.Environment["R2T2__Model"] = "r2t2-q4"; info.Environment["Logging__LogLevel__Default"] = "Warning";

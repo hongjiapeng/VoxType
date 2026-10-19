@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using VoxType.R2T2.Server;
+using VoxType.R2T2;
 
 namespace VoxType.Tests.R2T2;
 
@@ -58,7 +58,7 @@ public sealed class LlamaTranscriberTests
     public async Task InvalidResponse_ExactStatusCodeAndSanitization(string body, int status, string code)
     {
         var handler = new Handler((_, _) => Task.FromResult(Json(body))); using var client = new HttpClient(handler);
-        var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
+        var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
         Assert.AreEqual(status, error.Status); Assert.AreEqual(code, error.Code); Assert.DoesNotContain("private-secret", error.ToString()); Assert.IsNull(error.InnerException); Assert.AreEqual(1, handler.Calls);
     }
 
@@ -70,7 +70,7 @@ public sealed class LlamaTranscriberTests
     public async Task UpstreamFailure_SanitizedAndNeverRetried(int status)
     {
         var handler = new Handler((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("private-audio private-key") })); using var client = new HttpClient(handler);
-        var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
+        var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
         Assert.AreEqual(502, error.Status); Assert.AreEqual("upstream", error.Code); Assert.DoesNotContain("private-", error.ToString()); Assert.AreEqual(1, handler.Calls);
     }
 
@@ -82,7 +82,7 @@ public sealed class LlamaTranscriberTests
             var bytes = new byte[LlamaTranscriber.MaximumResponseBytes + 1];
             using var content = declared ? (HttpContent)new ByteArrayContent(bytes) : new StreamContent(new NonSeekableStream(bytes));
             using var client = new HttpClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content })));
-            var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
+            var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
             Assert.AreEqual(502, error.Status); Assert.AreEqual("format", error.Code);
         }
     }
@@ -91,9 +91,9 @@ public sealed class LlamaTranscriberTests
     public async Task InvalidLanguageOrOversizePrompt_DoesNotContactUpstream()
     {
         var handler = new Handler((_, _) => Task.FromResult(Completion("hello"))); using var client = new HttpClient(handler); var service = new LlamaTranscriber(client, new());
-        var language = await Assert.ThrowsExactlyAsync<ServiceException>(() => service.TranscribeAsync([], "invalid", "", default));
+        var language = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => service.TranscribeAsync([], "invalid", "", default));
         Assert.AreEqual(400, language.Status); Assert.AreEqual("language", language.Code);
-        var prompt = await Assert.ThrowsExactlyAsync<ServiceException>(() => service.TranscribeAsync([], "auto", new string('x', 4001), default));
+        var prompt = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => service.TranscribeAsync([], "auto", new string('x', 4001), default));
         Assert.AreEqual(400, prompt.Status); Assert.AreEqual("prompt", prompt.Code); Assert.AreEqual(0, handler.Calls);
         Assert.AreEqual("hello", await service.TranscribeAsync([], "auto", new string('x', 4000), default)); Assert.AreEqual(1, handler.Calls);
     }
@@ -140,7 +140,7 @@ public sealed class LlamaTranscriberTests
         using var client = new HttpClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) })));
         var request = new LlamaTranscriber(client, new() { TimeoutSeconds = 1 }).TranscribeAsync([], "auto", "", default);
         await body.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => request.WaitAsync(TimeSpan.FromSeconds(5)));
+        var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => request.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.AreEqual(504, error.Status); Assert.AreEqual("timeout", error.Code); Assert.IsTrue(body.ReadCancelled);
     }
 
@@ -160,7 +160,7 @@ public sealed class LlamaTranscriberTests
         var service = new LlamaTranscriber(client, new());
         for (int i = 0; i < 2; i++)
         {
-            var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => service.TranscribeAsync([], "auto", "", default));
+            var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => service.TranscribeAsync([], "auto", "", default));
             Assert.AreEqual(504, error.Status); Assert.AreEqual("timeout", error.Code);
         }
         Assert.AreEqual(2, handler.Calls);
@@ -170,7 +170,7 @@ public sealed class LlamaTranscriberTests
     public async Task NetworkFailure_SanitizedWithoutInnerException()
     {
         using var client = new HttpClient(new Handler((_, _) => throw new HttpRequestException("private-url private-key")));
-        var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
+        var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => new LlamaTranscriber(client, new()).TranscribeAsync([], "auto", "", default));
         Assert.AreEqual(503, error.Status); Assert.AreEqual("unavailable", error.Code); Assert.IsNull(error.InnerException); Assert.DoesNotContain("private-", error.ToString());
     }
 

@@ -30,7 +30,7 @@ try {
     if (-not (Test-Path -LiteralPath $notes)) { throw "Release notes missing: $notes" }
     $dist = Join-Path $root "dist/$versionNumber"
     if ($DryRun) {
-        Write-Host "Would build/verify $versionNumber from $commit, push master and annotated $tag, upload a draft with four assets, verify uploads, then publish a prerelease."
+        Write-Host "Would build/verify $versionNumber from $commit, push master and annotated $tag, upload desktop/server packages and manifests as five assets, verify uploads, then publish a prerelease."
         return
     }
     if (-not (Test-Path -LiteralPath (Join-Path $dist 'SHA256SUMS.txt'))) {
@@ -40,7 +40,7 @@ try {
     if ($info.sourceCommit -ne $commit -or $info.sourceDirty -or $info.version -ne $versionNumber -or $info.testsTotal -le 0 -or $info.testsPassed -ne $info.testsTotal) {
         throw 'Artifacts must come from this clean commit with a fully passing Release test report.'
     }
-    $names = @("VoxType-$versionNumber-win-x64-Setup.exe", "VoxType-$versionNumber-win-x64-Portable.zip", 'build-info.json')
+    $names = @("VoxType-$versionNumber-win-x64-Setup.exe", "VoxType-$versionNumber-win-x64-Portable.zip", "VoxType-R2T2-Server-$versionNumber-win-x64.zip", 'build-info.json')
     $lines = @(Get-Content -LiteralPath (Join-Path $dist 'SHA256SUMS.txt'))
     if ($lines.Count -ne $names.Count) { throw 'Checksum manifest is incomplete.' }
     foreach ($name in $names) {

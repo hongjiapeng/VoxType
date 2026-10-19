@@ -13,7 +13,7 @@ public sealed class OpenAiCompatibleProvider(HttpClient client, AppSettings sett
 {
     public const int MaximumResponseBytes = 1024 * 1024;
     public string Id => settings.ProviderId == "r2t2-server" ? "r2t2-server" : "openai-compatible";
-    public string DisplayName => Id == "r2t2-server" ? "R2T2 本机／局域网" : "OpenAI Compatible";
+    public string DisplayName => Id == "r2t2-server" ? "R2T2 服务器" : "OpenAI Compatible";
     public static HttpClient CreateClient() => new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
         { Timeout = Timeout.InfiniteTimeSpan };
 

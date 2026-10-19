@@ -3,8 +3,8 @@ using System.Text;
 
 namespace VoxType.Streaming;
 
-// Shared source: the adapter and Windows client use the same bounded SSE framing.
-internal static class ServerSentEvents
+// Shared assembly: the adapter and Windows client use the same bounded SSE framing.
+public static class ServerSentEvents
 {
     public static async IAsyncEnumerable<string> ReadAsync(Stream stream, int maximumBytes,
         [EnumeratorCancellation] CancellationToken token)
@@ -52,4 +52,4 @@ internal static class ServerSentEvents
     }
 }
 
-internal sealed class SseLimitException : IOException;
+public sealed class SseLimitException : IOException;

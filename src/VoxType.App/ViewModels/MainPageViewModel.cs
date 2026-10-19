@@ -45,7 +45,8 @@ public partial class MainPageViewModel : ObservableObject
     public bool HasBaseUrl => SelectedProvider.Fields.Contains(ProviderField.BaseUrl);
     public bool HasApiKey => SelectedProvider.Fields.Contains(ProviderField.ApiKey);
     public bool HasModel => SelectedProvider.Fields.Contains(ProviderField.Model);
-    public bool HasR2T2 => SelectedProvider.Id == "r2t2-server";
+    public bool HasR2T2 => SelectedProvider.Id is "r2t2-server" or "r2t2-local";
+    public bool HasLocalR2T2 => SelectedProvider.Id == "r2t2-local";
     public string ProviderDescription => SelectedProvider.Description;
     public string DefaultModelPath { get; init; } = "";
     public string DefaultR2T2DataDirectory { get; init; } = "";
@@ -72,7 +73,7 @@ public partial class MainPageViewModel : ObservableObject
     public void ReportR2T2Status(string message, bool running) { r2t2StatusRevision++; R2T2Status = message; IsR2T2Running = running; }
     public bool CanCopy => LatestText.Length > 0;
     public string UsageInstructions => "1. 聚焦外部输入框。\n2. 按住 " + settings.Current.Hotkey.DisplayName + " 说话，松开后识别并输入。"
-        + (settings.Current.ProviderId == "r2t2-server" && settings.Current.R2T2StreamOutput ? "\nR2T2 实时预览开启：说话时悬浮层会更新临时文字，松开后校正并输入。" : "")
+        + (settings.Current.ProviderId is "r2t2-server" or "r2t2-local" && settings.Current.R2T2StreamOutput ? "\nR2T2 实时预览开启：说话时悬浮层会更新临时文字，松开后校正并输入。" : "")
         + "\n3. 录音或识别中按 ESC 取消。";
     public event EventHandler<string>? ThemeChanged;
     public event EventHandler? CopyRequested;
@@ -110,6 +111,7 @@ public partial class MainPageViewModel : ObservableObject
         OnPropertyChanged(nameof(HasModelPath)); OnPropertyChanged(nameof(HasBaseUrl));
         OnPropertyChanged(nameof(HasApiKey)); OnPropertyChanged(nameof(HasModel));
         OnPropertyChanged(nameof(HasR2T2));
+        OnPropertyChanged(nameof(HasLocalR2T2));
         OnPropertyChanged(nameof(ProviderDescription));
     }
     partial void OnThemeChanged(string value) => ThemeChanged?.Invoke(this, value);
@@ -155,9 +157,7 @@ public partial class MainPageViewModel : ObservableObject
         if (IsR2T2Busy || IsR2T2Running) return;
         // Guard the save await too, so preparation cannot race with launch.
         IsR2T2Busy = true;
-        BaseUrl = "http://127.0.0.1:8272/v1";
-        Model = "r2t2-q4";
-        ApiKey = "";
+        SelectedProvider = Providers.Single(p => p.Id == "r2t2-local");
         if (!await SaveCurrentAsync()) { IsR2T2Busy = false; return; }
         IsR2T2Busy = false;
         await RunR2T2Async(prepare: false);
@@ -170,7 +170,7 @@ public partial class MainPageViewModel : ObservableObject
         r2t2Operation = cancellation;
         IsR2T2Busy = true;
         int statusRevision = r2t2StatusRevision;
-        R2T2Status = prepare ? "正在准备本机资源…" : "正在启动本机服务…";
+        R2T2Status = prepare ? "正在准备本机资源…" : "正在启动本机引擎…";
         var progress = new Progress<string>(text => { if (ReferenceEquals(r2t2Operation, cancellation)) R2T2Status = text; });
         try
         {
@@ -181,13 +181,13 @@ public partial class MainPageViewModel : ObservableObject
             if (statusRevision == r2t2StatusRevision)
             {
                 if (!prepare) IsR2T2Running = true;
-                R2T2Status = prepare ? "本机资源已准备完成，可以启动服务。" : "本机服务已就绪，可以在外部输入框按住快捷键说话。";
+                R2T2Status = prepare ? "本机资源已准备完成，可以启用本地引擎。" : "本机引擎已就绪，可以在外部输入框按住快捷键说话。";
             }
         }
         catch (OperationCanceledException) { R2T2Status = "已取消，已下载并校验完成的资源会保留。"; }
         catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException) { R2T2Status = ex.Message; }
         catch (HttpRequestException) { R2T2Status = "资源下载失败，请检查网络连接后重试。已校验完成的资源会保留。"; }
-        catch { R2T2Status = "本机服务操作失败，请检查数据目录和可用空间后重试。"; }
+        catch { R2T2Status = "本机引擎操作失败，请检查数据目录和可用空间后重试。"; }
         finally { r2t2Operation = null; IsR2T2Busy = false; }
     }
 
@@ -198,9 +198,9 @@ public partial class MainPageViewModel : ObservableObject
         try
         {
             if (StopR2T2ServiceAsync is not null) await StopR2T2ServiceAsync();
-            ReportR2T2Status("本机服务已停止。", false);
+            ReportR2T2Status("本机引擎已停止。", false);
         }
-        catch { R2T2Status = "停止服务失败，请退出 VoxType 后重试。"; }
+        catch { R2T2Status = "停止引擎失败，请退出 VoxType 后重试。"; }
     }
 
     [RelayCommand] private void Copy() => CopyRequested?.Invoke(this, EventArgs.Empty);

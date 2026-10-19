@@ -26,6 +26,20 @@
     <ProjectReference Include="..\..\services\R2T2.Server\R2T2.Server.csproj" />
     <ProjectReference Include="..\..\src\VoxType.Core\VoxType.Core.csproj" />
     <ProjectReference Include="..\..\src\VoxType.Infrastructure\VoxType.Infrastructure.csproj" />
+    <ProjectReference Include="..\VoxType.R2T2.TestHost\VoxType.R2T2.TestHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="CopyR2T2TestHost" AfterTargets="Build">
+    <MSBuild Projects="../VoxType.R2T2.TestHost/VoxType.R2T2.TestHost.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
+      <Output TaskParameter="TargetOutputs" ItemName="R2T2TestHostAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <R2T2TestHostDirectory>@(R2T2TestHostAssembly->'%(RootDir)%(Directory)')</R2T2TestHostDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <R2T2TestHostFiles Include="$(R2T2TestHostDirectory)llama-server.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(R2T2TestHostFiles)" DestinationFolder="$(OutDir)r2t2-testhost" />
+  </Target>
 
 </Project>

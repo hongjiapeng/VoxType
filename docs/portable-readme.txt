@@ -12,11 +12,12 @@ Speech models are not included. Download or import Whisper base in settings,
 or connect to your own R2T2 / OpenAI-compatible transcription server.
 Local Whisper requires AVX/AVX2/FMA/F16C and the x64 VC++ 2022 runtime.
 Vulkan additionally requires a compatible GPU and driver.
-Local R2T2 includes a compiled service and its .NET runtime; no SDK or PowerShell
-is needed from settings. Prepare resources once (about 1.63 GiB of models), then
-start. Settings show download/loading status and provide stop/cancel.
-The service stops when VoxType exits. Verified existing resources are reused.
-Command-line deployment scripts remain available for advanced use.
+Local R2T2 uses a shared library and one background llama-server process.
+No HTTP adapter, SDK or PowerShell is needed from settings. Select R2T2 本机,
+prepare resources once (about 1.63 GiB of models), then enable the local engine.
+Settings show progress and provide stop/cancel; the engine stops on app exit.
+To deploy an HTTP server, download the separate VoxType-R2T2-Server ZIP.
+Existing R2T2 server settings remain server connections until you select local.
 
 Settings and models live under %LOCALAPPDATA%\VoxType and are not removed
 when you delete this portable folder or uninstall the desktop application.

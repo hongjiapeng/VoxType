@@ -103,6 +103,22 @@ public sealed class JsonSettingsStoreTests
         Assert.ThrowsExactly<ArgumentException>(() => SettingsValidator.Validate(gpu with { R2T2InferenceBackend = "cuda" }));
     }
     [TestMethod]
+    [DataRow("r2t2-local", "https://remote.example.test/v1")]
+    [DataRow("r2t2-server", "http://127.0.0.1:8272/v1")]
+    [DataRow("r2t2-server", "http://192.168.1.100:8272/v1")]
+    public async Task R2T2Modes_RestartPreservesExplicitProviderAndRemoteCredentials(string provider, string url)
+    {
+        var file = new MemoryFile();
+        var store = new JsonSettingsStore(file, new DpapiSecretProtector());
+        var configured = Configured with { ProviderId = provider, BaseUrl = url, R2T2InferenceBackend = "vulkan", R2T2DataDirectory = @"D:\R2T2 Models" };
+        await store.SaveAsync(configured);
+        var loaded = await store.LoadAsync();
+        Assert.IsNull(loaded.Warning);
+        Assert.AreEqual(configured, loaded.Settings);
+        Assert.DoesNotContain(Configured.ApiKey, Encoding.UTF8.GetString(file.Bytes!));
+        Assert.AreEqual(1, file.Writes, "Loopback server configurations must not be silently migrated to local mode.");
+    }
+    [TestMethod]
     [DataRow("corrupt")]
     [DataRow("version")]
     [DataRow("provider")]

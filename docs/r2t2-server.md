@@ -1,12 +1,12 @@
-# R2T2 本机和局域网识别服务
+# R2T2 本机引擎和独立服务器
 
-VoxType 的 `R2T2 本机／局域网` Provider 可以连接本仓库的独立 HTTP 服务。服务把 WAV 转成音频聊天请求，交给常驻的 [llama-server](https://github.com/ggml-org/llama.cpp)，使用 [网易有道 Confucius4-R2T2 GGUF](https://huggingface.co/netease-youdao/Confucius4-R2T2-GGUF)。按住快捷键录音时支持实时预览，松开后校正完整结果，沿用 VoxType 的取消和文本输入流程。
+VoxType 提供“R2T2 本机”和“R2T2 服务器”两个入口。它们共用 `src/VoxType.R2T2.Core` 中的 WAV 校验、llama 请求、文本清理、限流／取消和流式解析。本机模式直接调用类库，仅启动回环地址上的 llama-server；服务器模式通过独立 ASP.NET Core 适配器提供 HTTP 接口，适合其他设备连接。底层均使用 [llama-server](https://github.com/ggml-org/llama.cpp) 和 [网易有道 Confucius4-R2T2 GGUF](https://huggingface.co/netease-youdao/Confucius4-R2T2-GGUF)。
 
 HTTP 接口识别完整 WAV 并可通过 SSE 逐段返回生成的文字。客户端的实时预览在录音期间不断提交最新的录音快照；模型官方的实时音频分块算法和 WebSocket 协议尚未接入。无需 Python、云账号或付费 API。模型准备阶段需要联网，运行阶段只连接配置的设备和本机 llama-server，不会自动下载。
 
 ## 体验实时识别预览
 
-服务已经是支持 SSE 的新版时可以继续运行；服务尚未升级时，先在旧服务窗口按 Ctrl+C，再重新运行 `pwsh -File scripts/start-r2t2.ps1 -Backend Vulkan`（CPU 使用 `-Backend Cpu`）。从托盘退出旧 VoxType 并运行新版，在“语音识别”选择 R2T2，开启“实时识别预览”并保存。服务地址、模型和推理设备沿用原配置，旧的流式开关设置会自动沿用。
+服务已经是支持 SSE 的新版时可以继续运行；服务尚未升级时，先在旧服务窗口按 Ctrl+C，再重新运行 `pwsh -File scripts/start-r2t2.ps1 -Backend Vulkan`（CPU 使用 `-Backend Cpu`）。从托盘退出旧 VoxType 并运行新版，在“语音识别”选择 R2T2 本机或 R2T2 服务器，开启“实时识别预览”并保存。服务地址、模型和推理设备沿用原配置，旧的流式开关设置会自动沿用。
 
 在外部输入框按住快捷键连续说几秒，松开之前悬浮层就会以“正在聆听 · 实时预览”显示临时文字，音量波形继续活动。客户端每完成一次预览后等待约 800ms，再取最新录音进行下一次识别；同一时刻最多一个预览请求，较慢设备不会积压旧快照。首段文字还取决于语音长度、音量和本机推理速度。
 
@@ -18,13 +18,19 @@ HTTP 接口识别完整 WAV 并可通过 SSE 逐段返回生成的文字。客�
 
 ## Windows：准备和启动
 
-修复后的 Windows 安装包／便携包已包含预编译服务及运行时。从“语音识别 → 本机 R2T2 服务”准备和启动，不需要 PowerShell 或 .NET SDK。准备时显示下载与校验进度，启动时等待模型健康检查，可在应用内停止／取消；退出 VoxType 会停止自己启动的服务。Vulkan 还需要可用的驱动及显存。模型主文件 1,107,404,736 字节，音频投影文件 641,773,984 字节，合计约 1.63 GiB；运行内存会高于文件大小，请预留数 GiB。
+### 普通本机使用
 
-原 v0.1.0 发布包在用户设备现场编译服务，且缺少仓库编译配置，可能报告 `Exception`、`Task` 等类型找不到。这是打包缺陷；旧发布附件需要升级到修复后的完整构建。
+桌面安装包／便携包包含共享识别类库，不再包含 HTTP 适配服务或 ASP.NET Core。选择“R2T2 本机”，在“本机 R2T2 引擎”选择 CPU / Vulkan、数据目录，点击“准备本机资源”后“启用本地引擎”。无需 PowerShell 或 .NET SDK。本机只使用 `127.0.0.1:8273`，不需要 8272；端口冲突时会提示停止旧服务，不会结束其他进程。更换设备或目录后先停止再启用。退出 VoxType 会关闭自己启动的推理进程并取消未完成请求。
 
-以下为开发者或局域网部署者的命令行方式，需要 PowerShell 7；从源码构建还需要 .NET 10 SDK。
+主模型 1,107,404,736 字节，音频投影 641,773,984 字节，共约 1.63 GiB；运行还需数 GiB 内存，Vulkan 需要兼容驱动与显存。默认目录：开发版向上查找仓库 `r2t2-data`，安装包／便携版为 `%LOCALAPPDATA%\VoxType\r2t2`，MSIX 使用应用本地缓存；也可指定其他磁盘的完整路径。资源只在点击准备时下载。
 
-在仓库根目录执行：
+原有 `r2t2-server`、URL、模型和密钥保持服务器语义。旧用户可以继续连接原服务，或停止旧服务后主动选择“R2T2 本机”。切换与启用本机模式均不覆盖服务器配置。
+
+### 独立服务器部署
+
+需要向其他设备提供识别时，下载并完整解压独立的 `VoxType-R2T2-Server-<版本>-win-x64.zip`。包内含自包含 `R2T2.Server.exe`、共享类库、.NET / ASP.NET Core 运行时、脚本、模板及许可；不含模型和 llama 运行时，二者由准备脚本按设备下载。Windows 部署脚本需要 PowerShell 7，无需 .NET SDK。桌面用户无需下载服务器包。
+
+在独立服务器包根目录执行（源码仓库也使用相同命令，但需要 .NET 10 SDK）：
 
 ```powershell
 pwsh -NoProfile -File scripts/prepare-r2t2.ps1
@@ -48,13 +54,11 @@ pwsh -NoProfile -File scripts/prepare-r2t2.ps1 -Backend Vulkan
 pwsh -NoProfile -File scripts/start-r2t2.ps1 -Backend Vulkan
 ```
 
-Windows 版 VoxType 的“语音识别 → 本机 R2T2 服务”可选择 `cpu`/`vulkan`，设置数据目录并点击“准备本机资源”“启动本机服务”。开发版留空时向上查找仓库 `r2t2-data` 并复用资源；MSIX 使用应用本地缓存，安装包／便携版默认使用 `%LOCALAPPDATA%\VoxType\r2t2`。可指定其他磁盘上的完整路径。准备只在点击后下载；启动会保存 `http://127.0.0.1:8272/v1`、模型别名 `r2t2-q4`。更换后端前点击“停止 / 取消”。远端设备需在那台电脑上选择。Debug 构建如需使用应用内入口，应先将服务自包含发布到应用输出根目录（与主程序共用相同运行时文件）；正式 `dotnet publish` 自动完成此步骤。
-
-`start-r2t2.ps1` 校验模型、优先使用随包的预编译服务，仅在源码仓库内回退到数据目录构建，启动两个隐藏子进程并等待 `/health` 就绪。默认适配服务 `127.0.0.1:8272`，llama-server `127.0.0.1:8273`。终端保持运行；Ctrl+C 或任一子进程退出时，脚本清理自己启动的两个进程。启动前检查端口占用，不终止已有进程。可用 `-Threads 8`、`-Port 8272`、`-LlamaPort 8273`、`-StartupTimeoutSeconds 240` 调整。`-LlamaServerPath` 可指定自备兼容运行时，其来源与兼容性由部署者负责。
+`start-r2t2.ps1` 校验模型、优先使用随包的预编译服务，仅在源码仓库内回退到按项目隔离的构建目录编译，启动两个隐藏子进程并等待 `/health` 就绪。默认适配服务 `127.0.0.1:8272`，llama-server `127.0.0.1:8273`。终端保持运行；Ctrl+C 或任一子进程退出时，脚本清理自己启动的两个进程。启动前检查端口占用，不终止已有进程。可用 `-Threads 8`、`-Port 8272`、`-LlamaPort 8273`、`-StartupTimeoutSeconds 240` 调整。`-LlamaServerPath` 可指定自备兼容运行时，其来源与兼容性由部署者负责。
 
 服务就绪后直接录音，无需再次点击启动。端口已占用时，脚本会显示端口、进程名称和 PID。先在旧服务窗口按 Ctrl+C 再启动；如果旧窗口已被强制关闭，子进程可能仍存在，需要在任务管理器按提示的 PID 确认并结束旧 R2T2 进程。不要结束其他应用的服务；也可改用空闲的 `-Port`／`-LlamaPort`，并同步修改客户端 Base URL。
 
-在 VoxType「语音识别」设置中选择 **R2T2 本机／局域网**，填写并保存：
+在 VoxType「语音识别」设置中选择 **R2T2 服务器**，填写并保存：
 
 | 字段 | 本机配置 |
 |---|---|

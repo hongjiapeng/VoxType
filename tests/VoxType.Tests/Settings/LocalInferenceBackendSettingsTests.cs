@@ -7,6 +7,22 @@ namespace VoxType.Tests.Settings;
 public sealed class LocalInferenceBackendSettingsTests
 {
     [TestMethod]
+    public void R2T2Modes_ShowLocalControlsOrServerFieldsAndNotifyBindings()
+    {
+        var model = new MainPageViewModel(new(new() { ProviderId = "r2t2-server" }), _ => Task.CompletedTask);
+        Assert.IsTrue(model.HasR2T2);
+        Assert.IsFalse(model.HasLocalR2T2);
+        Assert.IsTrue(model.HasBaseUrl && model.HasModel && model.HasApiKey);
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        model.SelectedProvider = model.Providers.Single(p => p.Id == "r2t2-local");
+        Assert.IsTrue(model.HasR2T2 && model.HasLocalR2T2);
+        Assert.IsFalse(model.HasBaseUrl || model.HasModel || model.HasApiKey);
+        Assert.Contains(nameof(model.HasLocalR2T2), changed);
+        Assert.Contains(nameof(model.HasBaseUrl), changed);
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task R2T2StreamingToggle_SavesExplicitChoice(bool enabled)
@@ -41,9 +57,9 @@ public sealed class LocalInferenceBackendSettingsTests
     }
 
     [TestMethod]
-    public async Task R2T2LocalLaunch_SavesLoopbackAddressAndPassesSelectedBackend()
+    public async Task R2T2LocalLaunch_SelectsLocalModeAndPreservesServerCredentials()
     {
-        var session = new SettingsSession(new());
+        var session = new SettingsSession(new() { BaseUrl = "https://speech.example.test/v1", Model = "remote-model", ApiKey = "saved-key" });
         string? launchedBackend = null;
         string? launchedDirectory = null;
         bool? preparing = null;
@@ -67,10 +83,11 @@ public sealed class LocalInferenceBackendSettingsTests
 
         await viewModel.LaunchLocalR2T2Command.ExecuteAsync(null);
 
-        Assert.AreEqual("http://127.0.0.1:8272/v1", session.Current.BaseUrl);
-        Assert.AreEqual("r2t2-q4", session.Current.Model);
+        Assert.AreEqual("r2t2-local", session.Current.ProviderId);
+        Assert.AreEqual("https://speech.example.test/v1", session.Current.BaseUrl);
+        Assert.AreEqual("remote-model", session.Current.Model);
         Assert.AreEqual("vulkan", session.Current.R2T2InferenceBackend);
-        Assert.AreEqual("", session.Current.ApiKey);
+        Assert.AreEqual("saved-key", session.Current.ApiKey);
         Assert.AreEqual("vulkan", launchedBackend);
         Assert.AreEqual(@"D:\R2T2 Models", launchedDirectory);
         Assert.IsNotNull(preparing);

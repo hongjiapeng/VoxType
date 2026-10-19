@@ -15,10 +15,15 @@ public sealed class R2T2StandaloneBuildTests
         Directory.CreateDirectory(root);
         try
         {
-            foreach (string file in Directory.GetFiles(Path.Combine(repository.FullName, "services", "R2T2.Server")))
-                if (Path.GetExtension(file) is ".cs" or ".csproj") File.Copy(file, Path.Combine(root, Path.GetFileName(file)));
+            foreach (string project in new[] { "services/R2T2.Server", "src/VoxType.R2T2.Core" })
+            {
+                string destination = Path.Combine(root, project);
+                Directory.CreateDirectory(destination);
+                foreach (string file in Directory.GetFiles(Path.Combine(repository.FullName, project)))
+                    if (Path.GetExtension(file) is ".cs" or ".csproj") File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
+            }
             var info = new ProcessStartInfo("dotnet") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (string argument in new[] { "build", Path.Combine(root, "R2T2.Server.csproj"), "-c", "Release", "--nologo" }) info.ArgumentList.Add(argument);
+            foreach (string argument in new[] { "build", Path.Combine(root, "services", "R2T2.Server", "R2T2.Server.csproj"), "-c", "Release", "--nologo" }) info.ArgumentList.Add(argument);
             using var process = Process.Start(info)!;
             var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
             try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(1)); }

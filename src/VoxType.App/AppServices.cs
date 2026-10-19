@@ -20,7 +20,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient transcriptionClient = OpenAiCompatibleProvider.CreateClient();
     private readonly HttpClient modelClient = LocalModelManager.CreateClient();
     private readonly HttpClient r2t2Downloads = new() { Timeout = TimeSpan.FromMinutes(30) };
-    private readonly R2T2LocalService r2t2;
+    private readonly R2T2LocalRuntime r2t2;
     private NativeClipboardHost? clipboardHost;
     private ITextInjectionService? injection;
     private readonly LocalWhisperService localWhisper = new(new WhisperBackend());
@@ -104,6 +104,7 @@ public sealed class AppServices : IAsyncDisposable
             {
                 ["openai-compatible"] = snapshot => new ProviderLease(new OpenAiCompatibleProvider(transcriptionClient, snapshot)),
                 ["r2t2-server"] = snapshot => new ProviderLease(new OpenAiCompatibleProvider(transcriptionClient, snapshot)),
+                ["r2t2-local"] = snapshot => new ProviderLease(new R2T2LocalProvider(r2t2, snapshot)),
                 ["whisper-local"] = snapshot =>
                 {
                     WhisperModelPath.Validate(WhisperModelPath.Resolve(snapshot.LocalModelPath));

@@ -245,3 +245,13 @@ README 按产品预览、快速开始、服务选择、运行要求、常见问�
 新增 `Portable.pubxml`、Inno Setup 用户级安装定义、`scripts/build-release.ps1` 和 `scripts/release.ps1`，并在 `.agents/skills/voxtype-release` 记录本仓库发布方式。桌面发布包含 .NET 和 Windows App SDK，保留 CPU / Vulkan Whisper 库、图标、第三方许可与 R2T2 启动资源，不包含模型或用户配置。构建信息记录源提交、工作区是否干净和测试计数；公开发布前核对提交与 SHA-256，只从完整草稿公开为 prerelease。
 
 Release/x64 回归 387 项通过，0 失败、0 跳过。实际启动自包含便携应用，UI Automation 确认设置页可用，再调用托盘“退出”，进程正常结束。Inno 安装程序在 `artifacts/install-smoke-<GUID>` 独立目录完成用户级静默安装；实际启动安装后的应用、确认设置页、从托盘退出后卸载，安装器和卸载器均返回 0，应用可执行文件与本次卸载注册项已移除。验收使用当前开发机器，不代表无开发环境或缺失 VC++ runtime 的干净机器验证；未把本次打包检查视为真实麦克风输入验收。发布包未进行 Authenticode 签名。
+
+### 2026-10-19 R2T2 共享类库与独立服务器包
+
+在 `codex/r2t2-shared-core` 分支抽取普通 `net10.0` 类库 `VoxType.R2T2.Core`，本机 Provider 直接调用共享协议实现，生命周期管理器只启动一个回环 llama-server。HTTP 适配器引用同一类库。新增显式 `r2t2-local`，旧 `r2t2-server`（包括回环地址）、模型和加密密钥保持原配置；切换与启用本机引擎不会覆盖服务器字段。实时预览的取消、最终校正和失败场景对两种模式展开回归。
+
+Release/x64 全套 **422 通过，0 失败，0 跳过**。新增进程集成测试使用专用协议替身和小型 GGUF 校验夹具，覆盖普通／流式识别、音频校验、调用方取消、停止取消、重启和配置变化；不依赖真实模型或麦克风。原 HTTP 契约、限流、超时、响应边界、错误净化和设置加密测试继续通过。源码服务使用 `--artifacts-path` 按项目隔离构建也成功。
+
+Debug 自包含构建和 WinUI analyzer 无诊断。使用 `winapp ui`、独立开发设置文件和健康检查替身运行 `scripts/test-r2t2-settings.ps1`：最终 **5 项通过，0 失败**，覆盖初始状态、无效目录、后台启动、停止及立即重启、本机／服务器界面切换。检查子进程只有一个 llama-server，没有 shell、SDK 或 HTTP 适配器。全部五张最终截图已逐张查看。模式选择通过 UIA SelectionItemPattern 完成，无需桌面键盘输入。证据在忽略目录 `artifacts/r2t2-shared/ui-acceptance/`；测试引擎已停止。
+
+以未发布版本号 0.1.2 执行完整本地打包，生成桌面安装程序、便携 ZIP、独立服务器 ZIP 和清单；未推送或发布。桌面 ZIP 115,847,447 字节（较公开 v0.1.1 减少 12.6 MiB），没有 `R2T2.Server`、ASP.NET Core、部署脚本或其依赖记录。服务器 ZIP 50,169,025 字节，包含自包含主机、共享类库、脚本、模板和许可，未混入 WinUI／Whisper。四项 SHA-256 全部相符。实际启动独立包内的自包含 EXE，连接协议替身后 `/health` 和 `/v1/models` 通过。最终升级清理规则的 Inno 安装器另行编译成功；本轮没有执行安装／卸载或干净机器、Docker、真实模型及真实麦克风验收。

@@ -52,6 +52,23 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 ; Remove only the obsolete service source shipped by v0.1.0. Models live elsewhere.
 Type: files; Name: "{app}\services\R2T2.Server\*.cs"
 Type: files; Name: "{app}\services\R2T2.Server\R2T2.Server.csproj"
+; v0.1.1 bundled the HTTP host. Local mode now uses the shared library.
+Type: files; Name: "{app}\R2T2.Server.*"
+Type: files; Name: "{app}\Microsoft.AspNetCore*.dll"
+; Current desktop dependencies are copied back by [Files], including AI.Abstractions.
+Type: files; Name: "{app}\Microsoft.Extensions.*.dll"
+Type: files; Name: "{app}\aspnetcorev2_inprocess.dll"
+Type: files; Name: "{app}\Microsoft.JSInterop.dll"
+Type: files; Name: "{app}\Microsoft.Net.Http.Headers.dll"
+Type: files; Name: "{app}\System.Diagnostics.EventLog*.dll"
+Type: files; Name: "{app}\System.Formats.Cbor.dll"
+Type: files; Name: "{app}\System.Security.Cryptography.Pkcs.dll"
+Type: files; Name: "{app}\System.Security.Cryptography.Xml.dll"
+Type: files; Name: "{app}\System.Threading.RateLimiting.dll"
+Type: files; Name: "{app}\scripts\prepare-r2t2.ps1"
+Type: files; Name: "{app}\scripts\start-r2t2.ps1"
+Type: files; Name: "{app}\scripts\r2t2-common.ps1"
+Type: files; Name: "{app}\scripts\r2t2-assets.json"
 
 [Icons]
 Name: "{group}\VoxType"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--settings"; WorkingDir: "{app}"

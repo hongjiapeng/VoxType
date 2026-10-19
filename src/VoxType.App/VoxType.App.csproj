@@ -78,7 +78,6 @@
     <Content Include="../../docs/third-party-notices.md" Link="ThirdPartyNotices.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../docs/r2t2-server.md" Link="docs/r2t2-server.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../docs/licenses/*" Link="licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../scripts/prepare-r2t2.ps1;../../scripts/start-r2t2.ps1;../../scripts/r2t2-common.ps1;../../scripts/r2t2-assets.json" Link="scripts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../services/r2t2-chat-template.jinja" Link="services/r2t2-chat-template.jinja" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <PropertyGroup>
@@ -87,13 +86,4 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">False</PublishTrimmed>
   </PropertyGroup>
-  <!-- Ship a compiled, self-contained adapter: client machines never build source. -->
-  <Target Name="PublishLocalR2T2Service" AfterTargets="Publish">
-    <PropertyGroup>
-      <R2T2PublishDirectory>$([System.IO.Path]::TrimEndingDirectorySeparator($([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))))</R2T2PublishDirectory>
-      <R2T2BuildDirectory>$(MSBuildProjectDirectory)/../../artifacts/r2t2-adapter/$([System.Guid]::NewGuid().ToString('N'))</R2T2BuildDirectory>
-    </PropertyGroup>
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../../services/R2T2.Server/R2T2.Server.csproj&quot; -c $(Configuration) -r win-x64 --self-contained true -p:Platform=x64 -p:PublishReadyToRun=false -p:DebugType=none -p:DebugSymbols=false -o &quot;$(R2T2BuildDirectory)&quot;" />
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/merge-r2t2-publish.ps1&quot; -SourceDirectory &quot;$(R2T2BuildDirectory)&quot; -PublishDirectory &quot;$(R2T2PublishDirectory)&quot;" />
-  </Target>
 </Project>

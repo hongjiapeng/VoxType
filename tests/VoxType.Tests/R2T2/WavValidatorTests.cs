@@ -1,5 +1,5 @@
 using System.Buffers.Binary;
-using VoxType.R2T2.Server;
+using VoxType.R2T2;
 
 namespace VoxType.Tests.R2T2;
 
@@ -24,7 +24,7 @@ public sealed class WavValidatorTests
     [DataRow(1920004, 413, "audio-size")]
     public void Duration_OutsideAllowedBoundaries_Rejected(int size, int status, string code)
     {
-        var error = Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(CreateWav(size)));
+        var error = Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(CreateWav(size)));
         Assert.AreEqual(status, error.Status);
         Assert.AreEqual(code, error.Code);
     }
@@ -38,7 +38,7 @@ public sealed class WavValidatorTests
     public void MalformedContainer_Rejected(int offset, int value)
     {
         var wav = CreateWav(); wav[offset] = (byte)value;
-        var error = Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(wav));
+        var error = Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(wav));
         Assert.AreEqual(400, error.Status); Assert.AreEqual("audio", error.Code);
     }
 
@@ -52,7 +52,7 @@ public sealed class WavValidatorTests
     public void UnsupportedPcmFormat_Rejected(int offset, int value)
     {
         var wav = CreateWav(); wav[offset] = (byte)value;
-        var error = Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(wav));
+        var error = Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(wav));
         Assert.AreEqual(400, error.Status); Assert.AreEqual("audio-format", error.Code);
     }
 
@@ -64,7 +64,7 @@ public sealed class WavValidatorTests
         var original = CreateWav();
         var wav = trailing ? original.Concat(new byte[3]).ToArray() : original[..^2];
         BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(4), (uint)wav.Length - 8);
-        Assert.AreEqual("audio", Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(wav)).Code);
+        Assert.AreEqual("audio", Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(wav)).Code);
     }
 
     [TestMethod]
@@ -76,7 +76,7 @@ public sealed class WavValidatorTests
         var duplicate = id == "fmt " ? wav[12..36] : wav[36..];
         var combined = wav.Concat(duplicate).ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(combined.AsSpan(4), (uint)combined.Length - 8);
-        Assert.AreEqual("audio", Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(combined)).Code);
+        Assert.AreEqual("audio", Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(combined)).Code);
     }
 
     [TestMethod]
@@ -85,14 +85,14 @@ public sealed class WavValidatorTests
     public void MissingRequiredChunk_Rejected(int chunkOffset)
     {
         var wav = CreateWav(); "JUNK"u8.CopyTo(wav.AsSpan(chunkOffset));
-        Assert.AreEqual("audio", Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(wav)).Code);
+        Assert.AreEqual("audio", Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(wav)).Code);
     }
 
     [TestMethod]
     public void OddPcmDataSize_Rejected()
     {
         var wav = CreateWav(8001);
-        Assert.AreEqual("audio", Assert.ThrowsExactly<ServiceException>(() => WavValidator.Validate(wav)).Code);
+        Assert.AreEqual("audio", Assert.ThrowsExactly<R2T2Exception>(() => WavValidator.Validate(wav)).Code);
     }
 
     [TestMethod]

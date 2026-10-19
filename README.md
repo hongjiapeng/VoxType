@@ -45,7 +45,7 @@ Drag the handle, waveform, or status text. VoxType remembers the position and tr
 | Feature | Capability |
 |---|---|
 | **Global push to talk** | Hold Ctrl + Shift + Space, or choose your own shortcut; Esc cancels |
-| **Three speech engines** | Local Whisper, local/LAN R2T2, and OpenAI Compatible |
+| **Speech engines** | Local Whisper, local/LAN R2T2, and OpenAI Compatible |
 | **Live draft text** | R2T2 previews during recording, then corrects the result from the full audio |
 | **Floating controls** | Waveform, progress, retry, direct dragging, position memory, input avoidance, and optional desktop entry |
 | **Local inference devices** | Separate CPU / Vulkan choices for Whisper and local R2T2 |
@@ -64,15 +64,18 @@ The installer runs per user under `%LOCALAPPDATA%\Programs\VoxType` without admi
 
 ## Choose your speech engine
 
+The shared-library local mode and separate server package below are source changes for the next release. Published v0.1.1 still bundles the server.
+
 | Engine | Best for | Setup |
 |---|---|---|
 | **Local Whisper** | Offline transcription on your PC | Download/import multilingual Whisper **base GGML**, about 148 MB; choose CPU or Vulkan |
-| **R2T2** | Local/LAN inference with previews during recording | Two GGUF files totaling about 1.63 GiB; default URL `http://127.0.0.1:8272/v1`, model alias `r2t2-q4` |
+| **R2T2 Local** | Offline inference with live previews | Prepare about 1.63 GiB of GGUF models in settings, then enable the CPU / Vulkan engine |
+| **R2T2 Server** | Another device or separately deployed server | Base URL, model alias and optional API key; deployers use the separate server ZIP |
 | **OpenAI Compatible** | An existing transcription service | Set a Base URL, model, and optional API key; the service must support `/v1/audio/transcriptions` |
 
 **Whisper:** Choose Hugging Face or the explicitly labeled HF-Mirror source. Downloads and imports are checked by size and SHA-256. The managed model is multilingual base GGML; `base.en` and GGUF are not supported by this provider. Restart VoxType after changing the device once Whisper has loaded.
 
-**R2T2:** Prepare and start a CPU / Vulkan service from settings, or connect to another machine. Live preview repeatedly transcribes snapshots of the recording; draft words may be revised, and latency depends on the device and recording length. Only the final result is inserted. See the [deployment guide (Chinese)](docs/r2t2-server.md).
+**R2T2:** Local mode calls the shared library and starts one background llama-server process. Server mode connects to an independent HTTP adapter, available as an optional ZIP. Existing server settings are preserved; select Local explicitly to use the built-in engine. Live preview repeatedly transcribes snapshots of the recording; draft words may be revised, and latency depends on the device and recording length. Only the final result is inserted. See the [deployment guide (Chinese)](docs/r2t2-server.md).
 
 **Compatible services:** Remote OpenAI-compatible endpoints require HTTPS; HTTP is allowed only for loopback addresses. R2T2 LAN mode has separate address validation and authentication requirements.
 
@@ -86,7 +89,7 @@ Detailed model, device, and session behavior is documented in the [usage guide (
 | Desktop runtimes | .NET 10 and Windows App SDK are included in the release packages |
 | Local Whisper | CPU support for AVX, AVX2, FMA, and F16C; x64 Visual C++ 2022 Redistributable |
 | Vulkan | A compatible GPU and driver; switch to CPU if unsupported |
-| Local R2T2 preparation/startup | Model storage and several GiB of available memory; fixed builds bundle the service and require no PowerShell or .NET SDK |
+| Local R2T2 preparation/startup | Model storage and several GiB of available memory; local mode requires no HTTP adapter, PowerShell or .NET SDK |
 
 Preview packages are unsigned, so Windows may show an unverified publisher. VoxType does not install trust certificates or change Windows security policy.
 

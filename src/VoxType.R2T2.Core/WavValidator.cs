@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace VoxType.R2T2.Server;
+namespace VoxType.R2T2;
 
 public static class WavValidator
 {
@@ -27,7 +27,7 @@ public static class WavValidator
                 if (BinaryPrimitives.ReadUInt16LittleEndian(fmt) != 1 || BinaryPrimitives.ReadUInt16LittleEndian(fmt[2..]) != 1 ||
                     BinaryPrimitives.ReadUInt32LittleEndian(fmt[4..]) != 16000 || BinaryPrimitives.ReadUInt32LittleEndian(fmt[8..]) != 32000 ||
                     BinaryPrimitives.ReadUInt16LittleEndian(fmt[12..]) != 2 || BinaryPrimitives.ReadUInt16LittleEndian(fmt[14..]) != 16)
-                    throw new ServiceException(400, "audio-format", "请提交 16kHz 单声道 16 位 PCM WAV。");
+                    throw new R2T2Exception(400, "audio-format", "请提交 16kHz 单声道 16 位 PCM WAV。");
                 format = true;
             }
             if (id.SequenceEqual("data"u8))
@@ -41,7 +41,7 @@ public static class WavValidator
             offset = (int)next;
         }
         if (!format || !data || totalData < 8000) throw Invalid();
-        if (totalData > 60 * 32000) throw new ServiceException(413, "audio-size", "录音不能超过 60 秒。");
+        if (totalData > 60 * 32000) throw new R2T2Exception(413, "audio-size", "录音不能超过 60 秒。");
     }
-    private static ServiceException Invalid() => new(400, "audio", "WAV 无效、截断或短于 250 毫秒。");
+    private static R2T2Exception Invalid() => new(400, "audio", "WAV 无效、截断或短于 250 毫秒。");
 }

@@ -111,7 +111,7 @@ public sealed class DictationCoordinator : IAsyncDisposable
             if (!session.End.Task.IsCompleted)
             {
                 Update(session, SessionState.Listening, "");
-                if (session.Settings.ProviderId == "r2t2-server" && session.Settings.R2T2StreamOutput && audio is IAudioPreviewSource source && lease is not null)
+                if (session.Settings.ProviderId is "r2t2-server" or "r2t2-local" && session.Settings.R2T2StreamOutput && audio is IAudioPreviewSource source && lease is not null)
                     previewTask = PreviewWhileListeningAsync(session, source, lease.Provider, previewCancellation.Token);
             }
             var reason = await session.End.Task.ConfigureAwait(false);

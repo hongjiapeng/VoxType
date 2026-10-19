@@ -245,13 +245,15 @@ public sealed class DictationCoordinatorTests
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(5));
 
     [TestMethod]
-    public async Task LivePreview_ShowsTextWhileMicrophoneIsStillListening_ThenFinalCorrectsIt()
+    [DataRow("r2t2-server")]
+    [DataRow("r2t2-local")]
+    public async Task LivePreview_ShowsTextWhileMicrophoneIsStillListening_ThenFinalCorrectsIt(string providerId)
     {
         await using var h = new Harness();
-        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Settings.Publish(new() { ProviderId = providerId, R2T2StreamOutput = true });
         var preview = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         h.Coordinator.Updated += (_, update) => { if (update.State == SessionState.Listening && update.PartialText is not null) preview.TrySetResult(update.PartialText); };
-        h.Provider.Send = (_, options, _) => Task.FromResult(new TranscriptionResult(options.PartialText is null ? "说话中的临时文字|" : "最终校正的完整句子。", "r2t2-server"));
+        h.Provider.Send = (_, options, _) => Task.FromResult(new TranscriptionResult(options.PartialText is null ? "说话中的临时文字|" : "最终校正的完整句子。", providerId));
         h.Coordinator.Start();
         Assert.AreEqual("说话中的临时文字", await preview.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.AreEqual(SessionState.Listening, h.Coordinator.State);
@@ -266,10 +268,12 @@ public sealed class DictationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task LivePreview_StopCancelsInFlightPreviewBeforeFinalRecognition()
+    [DataRow("r2t2-server")]
+    [DataRow("r2t2-local")]
+    public async Task LivePreview_StopCancelsInFlightPreviewBeforeFinalRecognition(string providerId)
     {
         await using var h = new Harness();
-        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Settings.Publish(new() { ProviderId = providerId, R2T2StreamOutput = true });
         var cancelled = Signal();
         h.Provider.Send = async (_, options, token) =>
         {
@@ -279,7 +283,7 @@ public sealed class DictationCoordinatorTests
                 catch (OperationCanceledException) { cancelled.TrySetResult(true); throw; }
             }
             Assert.IsTrue(cancelled.Task.IsCompleted, "Final inference must wait for preview ownership to be released.");
-            return new("最终结果", "r2t2-server");
+            return new("最终结果", providerId);
         };
         h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
         h.Coordinator.Stop(); await Wait(h.Finished.Task);
@@ -289,10 +293,12 @@ public sealed class DictationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task LivePreview_CancelDiscardsLateSnapshotAndKeepsLeaseUntilItReturns()
+    [DataRow("r2t2-server")]
+    [DataRow("r2t2-local")]
+    public async Task LivePreview_CancelDiscardsLateSnapshotAndKeepsLeaseUntilItReturns(string providerId)
     {
         await using var h = new Harness(blockProvider: true);
-        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Settings.Publish(new() { ProviderId = providerId, R2T2StreamOutput = true });
         h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
         h.Coordinator.Cancel();
         Assert.AreEqual(0, h.Registry.LeasesDisposed);
@@ -306,13 +312,15 @@ public sealed class DictationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task LivePreview_TransientFailureDoesNotStopMicrophoneOrPreventFinalResult()
+    [DataRow("r2t2-server")]
+    [DataRow("r2t2-local")]
+    public async Task LivePreview_TransientFailureDoesNotStopMicrophoneOrPreventFinalResult(string providerId)
     {
         await using var h = new Harness();
-        h.Settings.Publish(new() { ProviderId = "r2t2-server", R2T2StreamOutput = true });
+        h.Settings.Publish(new() { ProviderId = providerId, R2T2StreamOutput = true });
         h.Provider.Send = (_, options, _) => options.PartialText is null
             ? Task.FromException<TranscriptionResult>(new TranscriptionException("语音尚未完整", "empty"))
-            : Task.FromResult(new TranscriptionResult("完整结果", "r2t2-server"));
+            : Task.FromResult(new TranscriptionResult("完整结果", providerId));
         h.Coordinator.Start(); await Wait(h.Provider.Entered.Task);
         Assert.AreEqual(SessionState.Listening, h.Coordinator.State);
         Assert.IsTrue(h.Audio.Active);
@@ -323,6 +331,7 @@ public sealed class DictationCoordinatorTests
 
     [TestMethod]
     [DataRow("r2t2-server", false)]
+    [DataRow("r2t2-local", false)]
     [DataRow("whisper-local", true)]
     [DataRow("openai-compatible", true)]
     public async Task LivePreview_DisabledOrOtherProviderDoesNotRequestSnapshots(string id, bool enabled)

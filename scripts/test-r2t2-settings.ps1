@@ -1,5 +1,5 @@
 #Requires -Version 7.0
-# Run against an isolated Debug --test-profile configured for R2T2/cpu.
+# Run against an isolated Debug --test-profile configured for r2t2-local/cpu.
 param(
     [Parameter(Mandatory)][int]$AppPid,
     [Parameter(Mandatory)][string]$DataDirectory,
@@ -34,6 +34,15 @@ function Screenshot([string]$Name) {
     if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -eq 0) { throw "Screenshot missing: $path" }
     $screenshots.Add($path)
 }
+function SelectProvider([string]$Name) {
+    UI @('invoke', 'ProviderSelector', '--action', 'expand') | Out-Null
+    $tree = UI @('inspect', 'ProviderSelector', '--json') | ConvertFrom-Json
+    $items = @($tree.windows.elements.children | Where-Object { $_.type -eq 'ListItem' -and $_.name -eq $Name })
+    $selectors = @($items.selector | Select-Object -Unique)
+    if ($selectors.Count -ne 1) { throw "Expected one provider item: $Name" }
+    UI @('invoke', $selectors[0], '--action', 'select') | Out-Null
+    UI @('invoke', 'ProviderSelector', '--action', 'collapse') | Out-Null
+}
 try {
     UI @('wait-for', 'NavRecognition', '-t', '10000') | Out-Null
     $windows = @(UI @('list-windows', '--json') | ConvertFrom-Json)
@@ -65,8 +74,9 @@ try {
         UI @('wait-for', 'StopLocalR2T2', '-p', 'IsEnabled', '--value', 'True')
         Screenshot '03-r2t2-ready.png'
         if ($Target -eq 'local') {
-            $shells = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$AppPid" | Where-Object Name -in @('pwsh.exe', 'powershell.exe', 'dotnet.exe'))
-            if ($shells.Count) { throw 'Application launched a shell or SDK process.' }
+            $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$AppPid")
+            if (@($children | Where-Object Name -in @('pwsh.exe', 'powershell.exe', 'dotnet.exe', 'R2T2.Server.exe')).Count) { throw 'Application launched a shell, SDK or HTTP adapter process.' }
+            if (@($children | Where-Object Name -eq 'llama-server.exe').Count -ne 1) { throw 'Expected exactly one inference process.' }
         }
     }
     Test 'Stop releases controls and allows immediate restart' {
@@ -79,6 +89,20 @@ try {
         UI @('wait-for', 'R2T2Status', '--value', '已停止', '--contains', '-t', '5000')
         UI @('wait-for', 'StopLocalR2T2', '-p', 'IsEnabled', '--value', 'False')
         Screenshot '04-r2t2-stopped.png'
+    }
+    Test 'Local and server modes expose distinct controls and preserve the server URL' {
+        UI @('scroll-into-view', 'ProviderSelector')
+        SelectProvider 'R2T2 服务器'
+        UI @('wait-for', 'ProviderSelector', '--value', 'R2T2 服务器', '-t', '3000')
+        UI @('wait-for', 'R2T2InferenceBackend', '--gone', '-t', '3000')
+        UI @('wait-for', 'BaseUrl', '--value', 'http://127.0.0.1:8272/v1', '-t', '3000')
+        UI @('scroll-into-view', 'BaseUrl')
+        Screenshot '05-r2t2-server.png'
+        UI @('scroll-into-view', 'ProviderSelector')
+        SelectProvider 'R2T2 本机'
+        UI @('wait-for', 'ProviderSelector', '--value', 'R2T2 本机', '-t', '3000')
+        UI @('wait-for', 'BaseUrl', '--gone', '-t', '3000')
+        UI @('wait-for', 'R2T2InferenceBackend', '--value', 'cpu', '-t', '3000')
     }
 } catch { $results.Add(@{ name = 'UI setup'; status = 'FAIL'; detail = "$_" }) }
 finally {

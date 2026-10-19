@@ -73,9 +73,9 @@ public sealed class R2T2AssetsTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        Assert.ThrowsExactly<IOException>(() => R2T2LocalService.AssertPortAvailable(port));
+        Assert.ThrowsExactly<IOException>(() => R2T2LocalRuntime.AssertPortAvailable(port));
         listener.Stop();
-        R2T2LocalService.AssertPortAvailable(port);
+        R2T2LocalRuntime.AssertPortAvailable(port);
         listener.Start();
     }
 

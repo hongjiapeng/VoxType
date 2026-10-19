@@ -66,6 +66,9 @@
       },
       "voxtype.core": {
         "type": "Project"
+      },
+      "voxtype.r2t2.core": {
+        "type": "Project"
       }
     }
   }

@@ -222,7 +222,10 @@
         "contentHash": "2kynHvbAczuEYHKRIR9NYg8xiXaGZHW3hb1Ts+N2dNcmVpA87xJWxA07yDiFnf5+vXz428wK57YWNvxqTJdkKw=="
       },
       "r2t2.server": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "VoxType.R2T2.Core": "[0.1.1, )"
+        }
       },
       "voxtype.core": {
         "type": "Project"
@@ -232,11 +235,15 @@
         "dependencies": {
           "NAudio.Wasapi": "[3.1.0, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.12, )",
-          "VoxType.Core": "[1.0.0, )",
+          "VoxType.Core": "[0.1.1, )",
+          "VoxType.R2T2.Core": "[0.1.1, )",
           "Whisper.net": "[1.9.1, )",
           "Whisper.net.Runtime": "[1.9.1, )",
           "Whisper.net.Runtime.Vulkan": "[1.9.1, )"
         }
+      },
+      "voxtype.r2t2.core": {
+        "type": "Project"
       }
     }
   }

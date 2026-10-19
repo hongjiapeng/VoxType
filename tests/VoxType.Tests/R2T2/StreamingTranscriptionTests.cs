@@ -7,7 +7,7 @@ using VoxType.Core.Audio;
 using VoxType.Core.Settings;
 using VoxType.Core.Transcription;
 using VoxType.Infrastructure.Transcription;
-using VoxType.R2T2.Server;
+using VoxType.R2T2;
 
 namespace VoxType.Tests.R2T2;
 
@@ -52,7 +52,7 @@ public sealed class StreamingTranscriptionTests
             _ => "data: {\"choices\":\"private-key\"}\n\n"
         };
         using var client = Client(body);
-        var error = await Assert.ThrowsExactlyAsync<ServiceException>(() => new LlamaTranscriber(client, new()).TranscribeStreamingAsync([], "auto", "", (_, _) => Task.CompletedTask, default));
+        var error = await Assert.ThrowsExactlyAsync<R2T2Exception>(() => new LlamaTranscriber(client, new()).TranscribeStreamingAsync([], "auto", "", (_, _) => Task.CompletedTask, default));
         Assert.AreEqual(code, error.Code);
         Assert.DoesNotContain("private-key", error.ToString());
     }
@@ -66,7 +66,7 @@ public sealed class StreamingTranscriptionTests
         string body = ":" + new string('x', LlamaTranscriber.MaximumResponseBytes - Encoding.UTF8.GetByteCount(frames) - 3 + (oversize ? 1 : 0)) + "\n\n" + frames;
         using var client = Client(body);
         var pending = new LlamaTranscriber(client, new()).TranscribeStreamingAsync([], "auto", "", (_, _) => Task.CompletedTask, default);
-        if (oversize) Assert.AreEqual("format", (await Assert.ThrowsExactlyAsync<ServiceException>(() => pending)).Code);
+        if (oversize) Assert.AreEqual("format", (await Assert.ThrowsExactlyAsync<R2T2Exception>(() => pending)).Code);
         else Assert.AreEqual("hello", await pending);
     }
 
@@ -92,7 +92,7 @@ public sealed class StreamingTranscriptionTests
                 cancellation.Cancel();
                 await Assert.ThrowsAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
             }
-            else Assert.AreEqual("timeout", (await Assert.ThrowsExactlyAsync<ServiceException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)))).Code);
+            else Assert.AreEqual("timeout", (await Assert.ThrowsExactlyAsync<R2T2Exception>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)))).Code);
             Assert.AreEqual("next", await transcriber.TranscribeAsync([], "auto", "", default));
         }
         finally { cancellation.Cancel(); await pipe.Writer.CompleteAsync(); }
