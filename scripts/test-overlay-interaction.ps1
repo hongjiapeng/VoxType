@@ -45,6 +45,44 @@ function AssertFocus {
 }
 function Preview([string]$State) { Activate "--check-overlay=$State --check-theme=dark"; Start-Sleep -Milliseconds 250 }
 function Screenshot([string]$Name) { UI @('screenshot', '-w', "$( (Overlay).hwnd )", '-o', (Join-Path $artifacts "$Name.png")) | Out-Null }
+function AssertCaptionRegions {
+    $window = Overlay
+    $path = Join-Path $artifacts ('caption-' + [guid]::NewGuid().ToString('N') + '.json')
+    Activate "--check-diagnostics=$path"
+    $deadline = [DateTime]::UtcNow.AddSeconds(3)
+    while (-not (Test-Path -LiteralPath $path) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 50 }
+    $diagnostics = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    $tree = UI @('inspect', '-w', "$($window.hwnd)", '--json') | ConvertFrom-Json
+    function Flatten($elements) { foreach ($element in $elements) { $element; if ($element.children) { Flatten $element.children } } }
+    $elements = @(Flatten $tree.windows[0].elements)
+    $origin = [OverlayInteractionProbe]::Bounds([IntPtr]$window.hwnd)
+    $buttons = @($elements | Where-Object { $_.type -eq 'Button' -and -not $_.isOffscreen } | Sort-Object x)
+    function Covered($x, $y) {
+        @($diagnostics.OverlayDragRegions | Where-Object {
+            $x -ge $_.X -and $x -lt $_.X + $_.Width -and $y -ge $_.Y -and $y -lt $_.Y + $_.Height
+        }).Count -gt 0
+    }
+    foreach ($button in $buttons) {
+        foreach ($x in @(2, ($button.width / 2), ($button.width - 2))) {
+            foreach ($y in @(2, ($button.height / 2), ($button.height - 2))) {
+                if (Covered ($button.x - $origin.Left + $x) ($button.y - $origin.Top + $y)) {
+                    throw "Button $($button.automationId) overlaps caption"
+                }
+            }
+        }
+    }
+    $points = @(@(2, ($window.height / 2)), @(($window.width - 3), ($window.height / 2)),
+        @(($window.width / 2), 2), @(($window.width / 2), ($window.height - 3)))
+    for ($i = 1; $i -lt $buttons.Count; $i++) {
+        $left = $buttons[$i - 1].x + $buttons[$i - 1].width
+        $right = $buttons[$i].x
+        if ($right - $left -gt 2) { $points += ,@((($left + $right) / 2 - $origin.Left), ($window.height / 2)) }
+    }
+    foreach ($point in $points) {
+        if (-not (Covered $point[0] $point[1])) { throw "Background is not draggable at $point" }
+    }
+    if ($elements.automationId -contains 'OverlayIdleDragRegion') { throw 'Standalone drag handle remains' }
+}
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -171,21 +209,10 @@ $form.Add_Shown({
             AssertFocus
         }
     } -Physical $true
-    Test 'Native caption region includes waveform and text but excludes buttons' {
-        Preview 'tray'
-        $window = Overlay
-        $path = Join-Path $artifacts 'caption-regions.json'
-        Activate "--check-diagnostics=$path"
-        $deadline = [DateTime]::UtcNow.AddSeconds(3)
-        while (-not (Test-Path -LiteralPath $path) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 50 }
-        $diagnostics = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-        $scale = [OverlayInteractionProbe]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
-        foreach ($x in @(20, 48, 100, 170, 230)) {
-            $covered = @($diagnostics.OverlayDragRegions | Where-Object {
-                $x * $scale -ge $_.X -and $x * $scale -lt $_.X + $_.Width -and
-                $window.height / 2 -ge $_.Y -and $window.height / 2 -lt $_.Y + $_.Height
-            }).Count -gt 0
-            if ($covered -ne ($x -lt 140)) { throw "Incorrect native caption hit region at $x DIP" }
+    Test 'Native caption follows layout and excludes buttons in each session state' {
+        foreach ($state in @('tray', 'preview-long', 'failed', 'processing')) {
+            Preview $state
+            AssertCaptionRegions
         }
         AssertFocus
     }
@@ -231,9 +258,19 @@ $form.Add_Shown({
         UI @('wait-for', 'StartRecording', '-t', '3000')
         $window = Overlay
         $scale = [OverlayInteractionProbe]::GetDpiForWindow([IntPtr]$window.hwnd) / 96.0
-        if ([Math]::Abs($window.width - 120 * $scale) -gt 1) { throw 'Standby entry did not shrink' }
+        if ([Math]::Abs($window.width - 100 * $scale) -gt 1) { throw 'Standby entry did not shrink' }
+        AssertCaptionRegions
         AssertFocus
         Screenshot 'standby'
+    }
+    Test 'Standby background and button gaps remain draggable after theme changes' {
+        Activate '--check-overlay=hide --check-theme=light'
+        UI @('wait-for', 'StartRecording', '-t', '2000')
+        AssertCaptionRegions
+        Screenshot 'light-standby'
+        Activate '--check-overlay=hide --check-theme=dark'
+        UI @('wait-for', 'StartRecording', '-t', '2000')
+        AssertCaptionRegions
     }
     Test 'Preferences persist pin and manual position independently of ASR settings' {
         $family = $AppUserModelId.Split('!')[0]

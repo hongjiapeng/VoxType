@@ -30,8 +30,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Grid x:Name="SessionDragRegion" Grid.ColumnSpan="2" Background="Transparent"
-                          Loaded="DragRegion_Loaded" ToolTipService.ToolTip="{x:Bind ViewModel.FullDetail, Mode=OneWay}"
+                    <Grid Grid.ColumnSpan="2" Background="Transparent"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.FullDetail, Mode=OneWay}"
                           AutomationProperties.Name="拖动浮窗" AutomationProperties.AutomationId="OverlayDragRegion" />
                     <Grid Height="32" VerticalAlignment="Center" IsHitTestVisible="False">
                         <StackPanel x:Name="Waveform" Orientation="Horizontal" Spacing="3.5" Height="24"
@@ -56,20 +56,20 @@
                                    AutomationProperties.HelpText="{x:Bind ViewModel.FullDetail, Mode=OneWay}" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0"
                                 Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowActions), Mode=OneWay}">
-                    <Button Content="结束" FontSize="12" MinHeight="32" MinWidth="44"
+                    <Button x:Name="StopButton" Content="结束" FontSize="12" MinHeight="32" MinWidth="44"
                             Padding="10,4" CornerRadius="16" VerticalAlignment="Center" Background="{ThemeResource OverlayBadgeBrush}" BorderThickness="{ThemeResource OverlayActionBorderThickness}"
                             Command="{x:Bind ViewModel.StopCommand}"
                             Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowStop), Mode=OneWay}"
                             AllowFocusOnInteraction="False" IsTabStop="False"
                             AutomationProperties.Name="结束录音并识别" AutomationProperties.AutomationId="StopRecording" />
-                    <Button Content="重试" Click="StartClicked" MinWidth="44" MinHeight="32" Padding="8,4" CornerRadius="16"
+                    <Button x:Name="RetryButton" Content="重试" Click="StartClicked" MinWidth="44" MinHeight="32" Padding="8,4" CornerRadius="16"
                             Background="{ThemeResource OverlayBadgeBrush}" BorderThickness="{ThemeResource OverlayActionBorderThickness}"
                             ToolTipService.ToolTip="{x:Bind ViewModel.FullDetail, Mode=OneWay}"
                             IsEnabled="{x:Bind ViewModel.CanStart, Mode=OneWay}"
                             Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowRetry), Mode=OneWay}"
                             AllowFocusOnInteraction="False" IsTabStop="False"
                             AutomationProperties.Name="重新开始语音输入" AutomationProperties.AutomationId="RetryRecording" />
-                    <Button Click="MoreClicked" MinWidth="28" Width="28" MinHeight="32" Padding="0" Background="Transparent" BorderThickness="0"
+                    <Button x:Name="MoreButton" Click="MoreClicked" MinWidth="28" Width="28" MinHeight="32" Padding="0" Background="Transparent" BorderThickness="0"
                             Visibility="{x:Bind local:MainPage.Visible(ViewModel.ShowMore), Mode=OneWay}"
                             AllowFocusOnInteraction="False" IsTabStop="False" ToolTipService.ToolTip="更多"
                             AutomationProperties.Name="更多浮窗选项" AutomationProperties.AutomationId="OverlayMore">
@@ -78,19 +78,15 @@
                     </StackPanel>
                 </Grid>
                 <Grid ColumnSpacing="4" Visibility="{x:Bind local:MainPage.Visible(ViewModel.IsStandby), Mode=OneWay}">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="16" /><ColumnDefinition Width="36" /><ColumnDefinition Width="28" /></Grid.ColumnDefinitions>
-                    <Border x:Name="IdleDragRegion" Background="Transparent" Loaded="DragRegion_Loaded"
-                            ToolTipService.ToolTip="按住这里拖动浮窗" AutomationProperties.Name="拖动浮窗" AutomationProperties.AutomationId="OverlayIdleDragRegion">
-                        <FontIcon Glyph="&#xE784;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </Border>
-                    <Button Grid.Column="1" Click="StartClicked" Width="36" MinWidth="36" Height="36" Padding="0" CornerRadius="18"
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="28" /></Grid.ColumnDefinitions>
+                    <Button x:Name="StartButton" Click="StartClicked" Width="36" MinWidth="36" Height="36" Padding="0" CornerRadius="18"
                             Background="{ThemeResource OverlayBadgeBrush}" BorderThickness="{ThemeResource OverlayActionBorderThickness}"
                             IsEnabled="{x:Bind ViewModel.CanStart, Mode=OneWay}" AllowFocusOnInteraction="False" IsTabStop="False"
                             ToolTipService.ToolTip="开始语音输入 · 麦克风未开启"
                             AutomationProperties.Name="开始语音输入，麦克风未开启" AutomationProperties.AutomationId="StartRecording">
                         <FontIcon Glyph="&#xE720;" FontSize="20" />
                     </Button>
-                    <Button Grid.Column="2" Click="MoreClicked" MinWidth="28" Width="28" MinHeight="32" Padding="0" Background="Transparent" BorderThickness="0"
+                    <Button x:Name="IdleMoreButton" Grid.Column="1" Click="MoreClicked" MinWidth="28" Width="28" MinHeight="32" Padding="0" Background="Transparent" BorderThickness="0"
                             AllowFocusOnInteraction="False" IsTabStop="False" ToolTipService.ToolTip="更多"
                             AutomationProperties.Name="更多浮窗选项" AutomationProperties.AutomationId="OverlayMoreIdle">
                         <FontIcon Glyph="&#xE712;" FontSize="16" />

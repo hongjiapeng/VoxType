@@ -1,10 +1,12 @@
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Shapes;
 using System.Numerics;
+using Windows.Graphics;
 using Windows.UI.ViewManagement;
 using VoxType.Core.Dictation;
 using VoxType.Infrastructure.Windows;
@@ -43,7 +45,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
     private bool hasPlacement, dragging, menuOpen;
     private MenuFlyout? optionsMenu;
     private OverlayRect dragStart;
-    private FrameworkElement? activeDragRegion;
+    private RectInt32[] captionRegions = [];
     private SessionState state = SessionState.Idle;
     public event EventHandler<OverlayPreferences>? PreferencesChanged;
     public event EventHandler? StartRequested;
@@ -59,7 +61,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         this.preferences = preferences ?? new();
         InitializeComponent();
         SystemBackdrop = new TransparentOverlayBackdrop();
-        // Like SlidePace's floating HUD, delegate dragging to the system title bar.
+        // Delegate background dragging to the system caption region.
         ExtendsContentIntoTitleBar = true;
         // This window never activates, so initialize compiled Window bindings explicitly.
         Bindings.Initialize();
@@ -86,6 +88,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         ViewModel.PropertyChanged += ViewModelChanged;
         Root.Loaded += (_, _) => { UpdateDragRegion(); RefreshChrome(); if (AppWindow.IsVisible) ResizeToContent(true); };
         Root.SizeChanged += (_, _) => RefreshContentBridge();
+        Root.LayoutUpdated += Root_LayoutUpdated;
         Root.ActualThemeChanged += (_, _) => RefreshChrome();
     }
     private nint HandleMessage(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data)
@@ -94,6 +97,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         if (message == 0x83) return 0; // WM_NCCALCSIZE: remove the residual non-client frame.
         if (message == 0x14 && NativeWindow.EraseOverlayBackground(window, (nint)wParam)) return 1; // WM_ERASEBKGND
         if (message == 0x21) return 3; // MA_NOACTIVATE: deliver click without activation.
+        if (message == 0x20 && (short)lParam == 2) { NativeWindow.ShowOverlayDragCursor(); return 1; } // WM_SETCURSOR, HTCAPTION
         if (message == 0xA3 && wParam == 2) return 0; // Do not maximize on caption double-click.
         if (message == 0x231) // WM_ENTERSIZEMOVE
         {
@@ -250,7 +254,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         if (ViewModel.ShowStop || ViewModel.ShowRetry) actions += 44;
         if (ViewModel.ShowMore) actions += 28 + (ViewModel.ShowStop || ViewModel.ShowRetry ? 8 : 0);
         double textWidth = titleMeasure.DesiredSize.Width;
-        double nextWidth = ViewModel.IsStandby ? 120 : Math.Clamp(Math.Ceiling(98 + textWidth + actions), 180, 420);
+        double nextWidth = ViewModel.IsStandby ? 100 : Math.Clamp(Math.Ceiling(98 + textWidth + actions), 180, 420);
         double textHeight = titleMeasure.DesiredSize.Height;
         double nextHeight = ViewModel.IsStandby ? 56 : Math.Max(52, Math.Ceiling(textHeight + 20));
         if (Math.Abs(nextWidth - targetWidth) < 0.5 && Math.Abs(nextHeight - targetHeight) < 0.5 && resizeTimer.IsEnabled) return;
@@ -447,13 +451,43 @@ public sealed partial class OverlayWindow : Window, IDisposable
         hasPlacement = false;
         ResizeToContent(false);
     }
-    private void DragRegion_Loaded(object sender, RoutedEventArgs e) => UpdateDragRegion();
+    private void Root_LayoutUpdated(object? sender, object e) => UpdateDragRegion();
     private void UpdateDragRegion()
     {
-        FrameworkElement region = ViewModel.IsStandby ? IdleDragRegion : SessionDragRegion;
-        if (region.XamlRoot is null || activeDragRegion == region) return;
-        SetTitleBar(region);
-        activeDragRegion = region;
+        if (disposed || Capsule.XamlRoot is null || Capsule.ActualWidth <= 0 || Capsule.ActualHeight <= 0) return;
+        double scale = Capsule.XamlRoot.RasterizationScale;
+        var regions = new List<RectInt32>
+        {
+            new(0, 0, (int)Math.Round(Capsule.ActualWidth * scale), (int)Math.Round(Capsule.ActualHeight * scale))
+        };
+        Button[] buttons = ViewModel.IsStandby ? [StartButton, IdleMoreButton]
+            : ViewModel.ShowActions ? [StopButton, RetryButton, MoreButton] : [];
+        foreach (var button in buttons)
+        {
+            if (button.Visibility != Visibility.Visible || button.ActualWidth <= 0 || button.ActualHeight <= 0) continue;
+            var point = button.TransformToVisual(Capsule).TransformPoint(new(0, 0));
+            int left = (int)Math.Floor(point.X * scale), top = (int)Math.Floor(point.Y * scale);
+            int right = (int)Math.Ceiling((point.X + button.ActualWidth) * scale);
+            int bottom = (int)Math.Ceiling((point.Y + button.ActualHeight) * scale);
+            // Subtract each button from the caption, leaving padding and gaps draggable.
+            // Round exclusions outwards so fractional DPI never turns a button edge into a drag target.
+            for (int i = regions.Count - 1; i >= 0; i--)
+            {
+                var region = regions[i];
+                int x1 = Math.Max(region.X, left), y1 = Math.Max(region.Y, top);
+                int x2 = Math.Min(region.X + region.Width, right), y2 = Math.Min(region.Y + region.Height, bottom);
+                if (x1 >= x2 || y1 >= y2) continue;
+                regions.RemoveAt(i);
+                if (region.Y < y1) regions.Add(new(region.X, region.Y, region.Width, y1 - region.Y));
+                if (y2 < region.Y + region.Height) regions.Add(new(region.X, y2, region.Width, region.Y + region.Height - y2));
+                if (region.X < x1) regions.Add(new(region.X, y1, x1 - region.X, y2 - y1));
+                if (x2 < region.X + region.Width) regions.Add(new(x2, y1, region.X + region.Width - x2, y2 - y1));
+            }
+        }
+        var nextRegions = regions.ToArray();
+        if (captionRegions.SequenceEqual(nextRegions)) return;
+        InputNonClientPointerSource.GetForWindowId(AppWindow.Id).SetRegionRects(NonClientRegionKind.Caption, nextRegions);
+        captionRegions = nextRegions;
     }
     private void FinishDrag()
     {
@@ -558,6 +592,7 @@ public sealed partial class OverlayWindow : Window, IDisposable
         resizeTimer.Stop();
         resizeTimer.Tick -= ResizeTick;
         ViewModel.PropertyChanged -= ViewModelChanged;
+        Root.LayoutUpdated -= Root_LayoutUpdated;
         processingDelay?.Cancel(); processingDelay?.Dispose();
         if (contentBridge != 0) NativeWindow.RemoveWindowSubclass(contentBridge, contentProcedure, 3);
         NativeWindow.RemoveWindowSubclass(hwnd, procedure, 2);

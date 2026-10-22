@@ -8,6 +8,8 @@ public static partial class NativeWindow
     public delegate nint SubclassProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data);
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll", EntryPoint = "LoadCursorW")] private static extern nint LoadCursor(nint instance, nint name);
+    [DllImport("user32.dll")] private static extern nint SetCursor(nint cursor);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int command);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(nint hwnd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern nint GetWindowLongPtr(nint hwnd, int index);
@@ -31,6 +33,8 @@ public static partial class NativeWindow
         public nint Window, InsertAfter; public int X, Y, Width, Height; public uint Flags;
     }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+
+    public static void ShowOverlayDragCursor() => SetCursor(LoadCursor(0, 32646)); // IDC_SIZEALL
 
     public static void ConfigureOverlay(nint hwnd)
     {
