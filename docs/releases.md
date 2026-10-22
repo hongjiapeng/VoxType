@@ -1,12 +1,12 @@
 # Windows 发布包
 
-最新版本为 **0.1.2（预览）**。桌面包使用共享 R2T2 核心库运行本机引擎，独立服务器 ZIP 继续提供 HTTP 服务。本地输出在 `dist/<版本>/`，不纳入 Git；公开发布内容以 [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases) 为准。
+最新版本为 **0.1.3（预览）**。桌面包使用共享 R2T2 核心库运行本机引擎，独立服务器 ZIP 继续提供 HTTP 服务。本地输出在 `dist/<版本>/`，不纳入 Git；公开发布内容以 [GitHub Releases](https://github.com/hongjiapeng/VoxType/releases) 为准。
 
 | 文件 | 用途 |
 |---|---|
-| `VoxType-0.1.2-win-x64-Setup.exe` | 当前用户安装，无需管理员权限；可选桌面快捷方式 |
-| `VoxType-0.1.2-win-x64-Portable.zip` | 完整解压到本地目录后运行 `VoxType.App.exe` |
-| `VoxType-R2T2-Server-0.1.2-win-x64.zip` | 可选的自包含 HTTP 服务与部署脚本，普通本机用户无需下载 |
+| `VoxType-0.1.3-win-x64-Setup.exe` | 当前用户安装，无需管理员权限；可选桌面快捷方式 |
+| `VoxType-0.1.3-win-x64-Portable.zip` | 完整解压到本地目录后运行 `VoxType.App.exe` |
+| `VoxType-R2T2-Server-0.1.3-win-x64.zip` | 可选的自包含 HTTP 服务与部署脚本，普通本机用户无需下载 |
 | `SHA256SUMS.txt` | 核对安装包、两个 ZIP 和构建信息的 SHA-256 |
 | `build-info.json` | 构建时的源提交、工作区状态和 Release 测试计数 |
 
@@ -20,10 +20,10 @@ Whisper 仍要求 CPU 支持 AVX / AVX2 / FMA / F16C 和 x64 Visual C++ 2022 Red
 
 ## 本地构建
 
-需要 Windows 11 x64、仓库要求的 .NET SDK、Windows / WinUI 构建工具、PowerShell 7 和 Inno Setup 6。选择未占用的版本号；以下使用尚未发布的 0.1.2 举例：
+需要 Windows 11 x64、仓库要求的 .NET SDK、Windows / WinUI 构建工具、PowerShell 7 和 Inno Setup 6。选择未占用的版本号；以下使用 0.1.3 举例：
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.1.2
+./scripts/build-release.ps1 -Version 0.1.3
 ```
 
 脚本始终执行 Release 测试；只有测试报告显示实际执行且全部通过时才发布应用。每次使用新的 `artifacts/publish/<版本>-<GUID>/`，避免旧文件混入。若已有同名安装包、ZIP 或校验清单，会拒绝覆盖。
@@ -35,9 +35,9 @@ Whisper 仍要求 CPU 支持 AVX / AVX2 / FMA / F16C 和 x64 Visual C++ 2022 Red
 ## 检查与交付
 
 ```powershell
-Get-FileHash ./dist/0.1.2/VoxType-0.1.2-win-x64-Setup.exe -Algorithm SHA256
-Get-FileHash ./dist/0.1.2/VoxType-0.1.2-win-x64-Portable.zip -Algorithm SHA256
-Get-Content ./dist/0.1.2/SHA256SUMS.txt
+Get-FileHash ./dist/0.1.3/VoxType-0.1.3-win-x64-Setup.exe -Algorithm SHA256
+Get-FileHash ./dist/0.1.3/VoxType-0.1.3-win-x64-Portable.zip -Algorithm SHA256
+Get-Content ./dist/0.1.3/SHA256SUMS.txt
 ```
 
 交付前确认解压后的应用能打开设置、从托盘退出，并检查安装／卸载流程；真实语音输入按[手工验收表](manual-acceptance.md)检查。开发机器运行成功不能代替无开发环境的干净机器验收。
@@ -51,8 +51,8 @@ Get-Content ./dist/0.1.2/SHA256SUMS.txt
 先把预期代码合并到 `master` 并提交，更新源版本与 `docs/releases/v<版本>.md`，再从干净提交构建。发布已有产物时必须与当前提交一致，不能把脏工作区的预览产物当作正式附件。
 
 ```powershell
-./scripts/release.ps1 0.1.2 -DryRun
-./scripts/release.ps1 0.1.2
+./scripts/release.ps1 0.1.3 -DryRun
+./scripts/release.ps1 0.1.3
 ```
 
 发布脚本检查源版本、仓库、分支、标签是否存在、测试计数与产物 SHA-256。没有产物时先执行本地构建。确认后推送 `master`，创建并推送 annotated 版本标签，把五个附件上传到草稿，核对附件名称与大小，再公开为 **prerelease**。本项目采用本地构建上传。

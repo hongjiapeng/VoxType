@@ -6,7 +6,7 @@
 #endif
 #define MyAppExeName "VoxType.App.exe"
 #ifndef AppVersion
-  #define AppVersion "0.1.2"
+  #define AppVersion "0.1.3"
 #endif
 #ifndef SourceDir
   #error SourceDir must point to the verified portable publish directory.
